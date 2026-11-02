@@ -30,6 +30,7 @@ Of the checkable facts: 7 right, 2 wrong. Place matching was right on all 10.
 | R4 | An OSM max stay is never shown on its own: it goes to Notes until a sign photo, the store page or a chain rule confirms it. A wrong max stay gets drivers fined. | Waitrose Nine Elms: OSM 120, sign 60 |
 | R5 | A readable sign photo beats OSM wherever they disagree. A blurry photo only supports the single fact it shows (e.g. operator). | Waitrose Nine Elms, Morrisons Southwark |
 | R6 | Chain rules come only from finished rows with a strong, Site-specific source (1,115 rows), ignoring Unknown / Not applicable / Not published, and need 8+ rows at 80%+ agreement. Applied as chain policy (Specificity "Chain-wide"), never over site-specific evidence. Max stay is NEVER a chain rule: it varies by store (see below). | Chain analysis, 2 Nov 2026 |
+| R7 | A mistake that costs the driver money or a fine needs stronger evidence than a cautious one. "Free" needs site-specific evidence: an official or operator page, a readable sign photo, or OSM fee=no on a store's customers-only car park (access=customers or destination). OSM fee=no on a public or untagged car park gives Cost Type Unknown. If a chain rule says Paid and OSM says free, Cost Type Unknown plus a Review Flag. "Anyone can park" and any max stay need a strong site-specific source. A chain rule or category default never makes a row Free or Anyone. Cautious values (Customers only, Guests only, Paid, Unknown) can come from weaker evidence. | Deshan, 2 Nov 2026 |
 
 ## R6 chain rules found (chain_rules_candidates_v2.csv)
 
@@ -48,6 +49,8 @@ Of the checkable facts: 7 right, 2 wrong. Place matching was right on all 10.
 | Gatwick Airport | Anyone (paid) | Paid (86%) | Gatwick Airport Ltd |
 
 Max stay spread proves it is store-specific: PureGym 90 to 240 mins, Morrisons 90 to 180, Richmond Council 120 to 1440. The earlier "Sainsbury's = 120 mins (95%)" disappeared once chain-wide-sourced rows were excluded: it was the chain policy page repeated, and Sainsbury's Hornsey's sign says 90.
+
+Under R7, the Free and Anyone (paid) entries above are hints only: they go in Notes and never set Cost Type = Free or Who Can Park = Anyone on their own.
 
 R1, R3 and R4 are built into osm_parking_match.py (packet suggestions). R5 and R6 belong in the rules engine (Stage 3 of PP_architecture_OSM_first.md).
 

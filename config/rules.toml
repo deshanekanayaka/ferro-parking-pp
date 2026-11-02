@@ -65,3 +65,14 @@ operator = "the council itself"
 # National Rail, Southeastern, Southern, TfL. Operator APCOA is likely, not certain (80-92%).
 who_can_park = "Anyone (paid)"
 cost_type = "Paid"
+
+[r7]
+# A wrong cautious value (Customers only, Guests only, Paid, Unknown) costs little.
+# A wrong Free or Anyone value costs the driver money or a fine, so it needs
+# stronger, site-specific evidence. A chain rule or category default alone
+# never sets Cost Type = Free or Who Can Park = Anyone / Anyone (paid).
+free_requires_access = ["customers", "destination"]  # OSM fee=no only gives Free on these
+risky_cost_types = ["Free"]
+risky_who_can_park = ["Anyone", "Anyone (paid)"]
+cautious_cost_types = ["Paid", "Free then paid", "Unknown"]
+cautious_who_can_park = ["Customers only", "Guests only", "Unknown"]

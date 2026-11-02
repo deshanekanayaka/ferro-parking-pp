@@ -93,6 +93,29 @@ def test_osm_max_stay_goes_to_notes_r4():
     assert s["Can Park? (Yes/No/Conditional)"] == "Conditional"   # OSM never gives Yes
 
 
+# ---- suggestions follow rule R7 (Free needs site-specific evidence) --------
+def test_fee_no_on_customers_only_car_park_gives_free_r7():
+    s = m.suggest({"access": "customers", "fee": "no"}, None)
+    assert s["Cost Type"] == "Free"
+
+
+def test_fee_no_on_destination_car_park_gives_free_r7():
+    s = m.suggest({"access": "destination", "fee": "no"}, None)
+    assert s["Cost Type"] == "Free"
+
+
+def test_fee_no_on_public_car_park_gives_unknown_r7():
+    s = m.suggest({"access": "yes", "fee": "no"}, None)
+    assert s["Cost Type"] == "Unknown"
+    assert "R7" in s["OSM Notes"]
+
+
+def test_fee_no_on_untagged_car_park_gives_unknown_r7():
+    s = m.suggest({"fee": "no"}, None)
+    assert s["Cost Type"] == "Unknown"
+    assert "R7" in s["OSM Notes"]
+
+
 # ---- end to end on the sample fixture ----------------------------------------
 def test_end_to_end_routes(tmp_path):
     out = tmp_path / "out.csv"

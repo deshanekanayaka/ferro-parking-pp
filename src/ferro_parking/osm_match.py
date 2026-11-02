@@ -272,12 +272,24 @@ def suggest(tags, ts):
 
     # Cost.
     if fee == "no":
-        s["Cost Type"] = "Free"
-        s["Price Status"] = "Published"
-        # R4: an OSM max stay is never shown alone (it goes to Notes), so the
-        # tariff is "time limit not published" until a sign or the store confirms it
-        s["Tariff Type"] = "Free (time limit not published)"
-        s["Tariff Detail"] = "Free"
+        # R7: "Free" costs the driver nothing if right, but a wrong "Free" lets
+        # someone park in a space they will be fined for, so OSM's fee=no only
+        # gives Free on a store's customers-only car park (access=customers or
+        # destination). On a public or untagged car park it stays Unknown.
+        if acc in ("customers", "destination"):
+            s["Cost Type"] = "Free"
+            s["Price Status"] = "Published"
+            # R4: an OSM max stay is never shown alone (it goes to Notes), so the
+            # tariff is "time limit not published" until a sign or the store confirms it
+            s["Tariff Type"] = "Free (time limit not published)"
+            s["Tariff Detail"] = "Free"
+        else:
+            s["Cost Type"] = "Unknown"
+            s["Price Status"] = "Not published"
+            s["Tariff Type"] = "Not published"
+            s["Tariff Detail"] = "Not published"
+            notes.append("OSM fee=no but access is not customers-only: "
+                         "Cost Type Unknown under R7 (Free needs site-specific evidence)")
     elif fee == "yes":
         s["Cost Type"] = "Free then paid" if "fee:conditional" in tags else "Paid"
         s["Price Status"] = "Not published"
