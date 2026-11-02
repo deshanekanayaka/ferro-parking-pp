@@ -1,0 +1,67 @@
+# Ferro parking rules (R1-R6). See docs/PP_rules_and_pilot.md for where each came from.
+# Read by the fill step (next to build). Edit here, not in code.
+
+[r1_category_defaults]
+# A store's car park is for its customers by default. Official sources override.
+store = "Customers only"            # supermarket, shop, retail park, fast food, gym
+hotel = "Guests only"
+hospital = "Patients and visitors"
+
+[r3_own_brand_operators]
+# OSM operator tag equal to the store itself = landowner, not the parking company.
+names = ["morrisons", "asda", "m&s", "marks & spencer", "mcdonald's", "currys",
+         "currys pc world", "lidl", "aldi", "tesco", "sainsbury's", "waitrose",
+         "iceland", "co-op"]
+
+[r4]
+# OSM max stay never goes into Max Stay on its own: Notes only, until confirmed.
+osm_max_stay_to_notes = true
+
+[r6]
+# Chain rules come from finished rows with a strong, Site-specific source only.
+min_rows = 8
+min_agreement = 0.80
+max_stay_is_chain_rule = false      # max stay varies by store (PureGym 90-240 mins)
+
+# Chain rules found on 2026-11-02 (chain_rules_candidates_v2.csv).
+[r6.chains.tesco]
+who_can_park = "Customers only"
+[r6.chains.sainsburys]
+who_can_park = "Customers only"
+[r6.chains.asda]
+who_can_park = "Customers only"
+cost_type = "Free"
+[r6.chains."the gym group"]
+who_can_park = "Customers only"
+cost_type = "Free"
+[r6.chains.puregym]
+cost_type = "Free"
+[r6.chains."premier inn"]
+who_can_park = "Guests only"
+[r6.chains.travelodge]
+who_can_park = "Guests only"
+[r6.chains.morrisons]
+operator = "Euro Car Parks"
+[r6.chains."euro car parks"]
+who_can_park = "Anyone (paid)"
+cost_type = "Paid"
+operator = "Euro Car Parks"
+[r6.chains.ncp]
+who_can_park = "Anyone (paid)"
+cost_type = "Paid"
+operator = "NCP"
+[r6.chains."harrow council"]
+who_can_park = "Anyone (paid)"
+cost_type = "Free then paid"
+operator = "Harrow Council"
+
+[r6.council_car_parks]
+# Bromley, Bexley, Croydon, Merton, Ealing, Brent, Greenwich, Kingston, City of London, Barnet, Enfield
+who_can_park = "Anyone (paid)"
+cost_type = "Paid"
+operator = "the council itself"
+
+[r6.station_car_parks]
+# National Rail, Southeastern, Southern, TfL. Operator APCOA is likely, not certain (80-92%).
+who_can_park = "Anyone (paid)"
+cost_type = "Paid"

@@ -1,0 +1,11 @@
+Location Name,Brand,Place Category,Type (as captured),Borough,Latitude,Longitude,Geo Precision,Verification Result,Place ID,Source URLs (primary first),Ferro Autopay,Location Status
+Co-op Surbiton - Ellerton Road,,,Supermarket (Co-op),Kingston upon Thames,51.383488,-0.295630,Postcode centroid,,PP-003003,https://www.coop.co.uk/store-finder/KT6-7TX/2a-ellerton-road ; https://maps.google.com/x,,Open
+Co-op London - Strand,,,Supermarket (Co-op),Westminster,51.508277,-0.126366,Postcode centroid,,PP-003000,,,Open
+Queen Street Car Park,,Council car park,Car park,City of London,51.5101,-0.1010,Postcode centroid,,PP-009999,,✅,Open
+Already done row,,,Supermarket (Tesco),Ealing,51.5,-0.3,Building,Confirmed,PP-000001,,,Open
+Tesco Nowhere,,,Supermarket (Tesco),Ealing,51.45,-0.35,Postcode centroid,,PP-000002,,,Open
+No coords,,,Hotel,Ealing,,,,,PP-000003,,,Open
+Battersea Park Station,,Station,Station,Wandsworth,51.47740,-0.14760,Postcode centroid,,PP-008888,,,Open
+Battersea Park,,Council park / open space,Park,Wandsworth,51.47735,-0.14760,Postcode centroid,,PP-008887,,,Open
+Grove Hotel,,,Hotel,UNCLEAR,51.46,-0.36,Postcode centroid,,PP-007777,,,Open
+,,,,,,,,,PP-000141,,,

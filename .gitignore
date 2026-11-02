@@ -1,0 +1,15 @@
+# data never goes in git (OSM extracts, sheet exports, run outputs, undo files)
+data/*
+!data/README.md
+*.pbf
+*.csv
+!tests/fixtures/*.csv
+# secrets (Google service account key, if used later)
+secrets/
+*.json.key
+# python
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+.DS_Store

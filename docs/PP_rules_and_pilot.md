@@ -1,0 +1,57 @@
+# PP parking data: rules from the OSM pilot (2 Nov 2026)
+
+## Pilot
+
+- 10 route C rows in "ALL LONDON (clean)" written on 2026-11-02 (rows 698, 1111, 1278, 1303, 1363, 1395, 1447, 1591, 1881, 3491).
+- Filter them with Verified By = "OSM script (pilot)" (OSM only) or "Deshan (pilot, manual check)" (sign photo checked by hand).
+- All 10 have Review Flag "OSM pilot row: verify by hand" and Flag Status Open.
+- Undo copy of the original values: pilot_undo.json (kept with the pilot files).
+- Sheet changes made with the pilot: "OpenStreetMap" added to the Source Tier dropdown, "OpenStreetMap only" to Evidence Type, and the Confidence (1-5) formula now scores OpenStreetMap like Google Maps - About (25).
+
+### Manual check results (Google Maps sign photos, 5 rows)
+
+| Row | Place | Result |
+|---|---|---|
+| 698 | Sainsbury's Hornsey | Correct: 90 min max stay, camera enforced |
+| 1111 | Tesco Hackney Morning Lane | Correct on all four: customers only, free, 1 hr, Horizon Parking. Sign (Sept 2022) also gives no return within 2 hrs, ANPR + patrols, PCN £70 |
+| 1363 | Waitrose Nine Elms | Wrong max stay: OSM 120 mins, sign 60 mins |
+| 1303 | Morrisons Southwark | Wrong operator: OSM "Morrisons", sign shows Euro Car Parks |
+| 3491 | Currys Brentford | Can't tell (no sign visible) |
+
+Of the checkable facts: 7 right, 2 wrong. Place matching was right on all 10.
+
+## Rules
+
+| # | Rule | Source |
+|---|---|---|
+| R1 | A store's car park is for its customers by default: supermarket, shop, retail park, fast food or gym = Customers only; hotel = Guests only; hospital = Patients and visitors. An official source saying otherwise wins. | Deshan; every checked store row |
+| R2 | Parking signs do not expire: a sign photo of any age counts as current unless a newer source disagrees. Evidence Age still records the date. | Brandon: parking rules very rarely change |
+| R3 | If OSM's operator tag is the store itself (Morrisons, Asda, M&S, McDonald's, Currys...), it is the landowner, not the parking company: Operator = Not published. | Morrisons Southwark was Euro Car Parks |
+| R4 | An OSM max stay is never shown on its own: it goes to Notes until a sign photo, the store page or a chain rule confirms it. A wrong max stay gets drivers fined. | Waitrose Nine Elms: OSM 120, sign 60 |
+| R5 | A readable sign photo beats OSM wherever they disagree. A blurry photo only supports the single fact it shows (e.g. operator). | Waitrose Nine Elms, Morrisons Southwark |
+| R6 | Chain rules come only from finished rows with a strong, Site-specific source (1,115 rows), ignoring Unknown / Not applicable / Not published, and need 8+ rows at 80%+ agreement. Applied as chain policy (Specificity "Chain-wide"), never over site-specific evidence. Max stay is NEVER a chain rule: it varies by store (see below). | Chain analysis, 2 Nov 2026 |
+
+## R6 chain rules found (chain_rules_candidates_v2.csv)
+
+| Chain / group | Who Can Park | Cost Type | Operator |
+|---|---|---|---|
+| Tesco, Sainsbury's | Customers only | - | - |
+| Asda | Customers only | Free | - |
+| The Gym Group | Customers only | Free | - |
+| PureGym | - | Free | - |
+| Premier Inn, Travelodge | Guests only (80%) | - | - |
+| Morrisons | - | - | Euro Car Parks (11 of 11; matches the Southwark sign) |
+| Euro Car Parks, NCP sites | Anyone (paid) | Paid | Euro Car Parks / NCP |
+| Council car parks (Bromley, Bexley, Croydon, Merton, Ealing, Brent, Greenwich, Kingston, City of London, Barnet, Enfield) | Anyone (paid) | Paid | the council |
+| Harrow Council | Anyone (paid) | Free then paid | Harrow Council |
+| Station car parks (National Rail, Southeastern, Southern, TfL) | Anyone (paid) | Paid | APCOA for National Rail (80%) and Southern (92%): treat as likely, not certain |
+| Gatwick Airport | Anyone (paid) | Paid (86%) | Gatwick Airport Ltd |
+
+Max stay spread proves it is store-specific: PureGym 90 to 240 mins, Morrisons 90 to 180, Richmond Council 120 to 1440. The earlier "Sainsbury's = 120 mins (95%)" disappeared once chain-wide-sourced rows were excluded: it was the chain policy page repeated, and Sainsbury's Hornsey's sign says 90.
+
+R1, R3 and R4 are built into osm_parking_match.py (packet suggestions). R5 and R6 belong in the rules engine (Stage 3 of PP_architecture_OSM_first.md).
+
+## What manual checking showed
+
+- Street View rarely shows signs at readable size; Google Maps Photos of the car park sign are the best manual source (about 5 minutes per row).
+- Sign photos give far more than OSM (no-return rules, enforcement type, PCN amount, Blue Badge rules), so a sampled manual check (or a vision model reading sign photos) is the quality gate, not OSM alone.
