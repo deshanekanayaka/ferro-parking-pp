@@ -25,9 +25,10 @@ Put the input data in `data/raw/` (never committed):
 | Step | Command | Status |
 |---|---|---|
 | 1. Match + route | `python -m ferro_parking match data/raw/greater-london-latest.osm.pbf data/raw/all_london_clean.csv` | built, tested |
-| 2-3. Fill (rules R1-R6, dry run, undo, write batch) | `python -m ferro_parking fill --borough Haringey` | next to build |
-| Review file for spot checks | `python -m ferro_parking review` | next to build |
-| Write + read back | Sheets API writer | to decide |
+| Export the live sheet | `python -m ferro_parking export` | built, tested |
+| 2-3. Fill (rules R1-R7, dry run only) | `python -m ferro_parking fill --borough Haringey` | built, tested |
+| 4. Write to the sheet | `python -m ferro_parking write PLAN.json --apply` | built, tested with mocks |
+| 4. Undo a write | `python -m ferro_parking undo UNDO.json --apply` | built, tested with mocks |
 
 Outputs go to `data/runs/<date>/`, so nothing is ever overwritten and no `_v2` files are needed.
 

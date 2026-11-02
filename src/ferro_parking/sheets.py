@@ -58,6 +58,13 @@ def col_letter(index):
     return letters
 
 
+def get_headers(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
+    resp = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id, range=f"{tab}!1:1").execute()
+    values = resp.get("values", [])
+    return values[0] if values else []
+
+
 def read_tab(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
     """Read the tab. Returns (headers, rows); each row is a dict keyed by
     header text, plus "_sheet_row" (the 1-based row number in the sheet)."""
