@@ -119,3 +119,80 @@ def test_royal_parks_per_15_minute_tariff_stays_left_for_grok():
     )
     rec = ce.classify(row, OSM_ROW)
     assert rec["leave_for_grok"] is True
+
+
+# ---- regressions found by the second-reading check on the Westminster plan --
+def test_operator_regex_stops_before_station_operator_appended():
+    # Was: "APCOA Parking (UK) Limited. Station operator" (a greedy match
+    # across the full stop and into the next sentence).
+    row = sheet_row(
+        "PP-000799", type_captured="Station Car Park",
+        charges="Monday - Friday | Up to 1 hour: £5.15 | Up to 2 hours: £9.00",
+        hours="Mon–Fri: 24 hours",
+        notes=("Car park operator: APCOA Parking (UK) Limited. Station operator: Network Rail."),
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["operator"]["value"] == "APCOA Parking (UK) Limited"
+
+
+def test_two_separate_tariff_schedules_are_not_concatenated():
+    # A standard schedule followed by an unrelated emission-based schedule in
+    # the same sentence must not be read as one continuous band sequence.
+    charges = ("Turn Up & Park: 1h £6.50; 2h £12.00; 12h £28.00; 24h £34.00. "
+               "Emission Based Green Tariff: 1h £5.50; 2h £11.00; 12h £25.00.")
+    bands = ce.parse_bands(charges)
+    assert bands == [(1, 6.50), (2, 12.00), (12, 28.00), (24, 34.00)]
+
+
+def test_24hr_no_space_spelling_counts_as_24_7():
+    assert ce.extract_hours_osm("Mon-Sun 24HR") == "24/7"
+    assert ce.extract_hours_osm("Mon-Sun 24Hr") == "24/7"
+
+
+def test_bare_midnight_timestamp_is_not_24_7():
+    # Mon closes at 22:00, only Sun runs the full day: one 00:00 is a close
+    # time on a non-24-hour day, not evidence the car park never shuts.
+    assert ce.extract_hours_osm("Mon 00:00-22:00, Tue-Fri 06:00-22:00, Sun 00:00-00:00") is None
+
+
+def test_max_stay_uses_the_captured_column_when_it_states_a_limit():
+    row = sheet_row(
+        "PP-003815", type_captured="CitiPark",
+        charges="1h £6.50; 2h £12.00",
+        hours="Mon-Sun 24 hours",
+        notes="CitiPark operator",
+    )
+    row["Max Stay (as captured)"] = "24 hours"
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["max_stay_mins"]["value"] == "1440"
+
+
+def test_max_stay_stays_no_limit_when_the_captured_column_has_no_number():
+    row = sheet_row(
+        "PP-000798", type_captured="Station Car Park",
+        charges="1h £5.15; 3h £11.50",
+        hours="Not stated on NRE", notes="APCOA",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["max_stay_mins"]["value"] == "No limit"
+
+
+def test_negated_customer_car_park_is_not_read_as_a_customer_car_park():
+    row = sheet_row(
+        "PP-004215", type_captured="Supermarket",
+        notes="NO OFFICIAL INFO; no customer car park listed on the store page.",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"].get("who_can_park", {}).get("value") != "Customers only"
+
+
+def test_r9_does_not_match_inside_a_hedged_no_official_info_note():
+    # "page lists no car park" sits inside a hedge ("NO OFFICIAL INFO ...
+    # verify on site"), so it is capture-side hedging, not the source's own
+    # explicit denial, and must not produce Can Park? No.
+    row = sheet_row(
+        "PP-002953", type_captured="Supermarket",
+        notes="NO OFFICIAL INFO on car park; page lists no car park; verify on site.",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"].get("can_park", {}).get("value") != "No"

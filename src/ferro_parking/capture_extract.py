@@ -26,7 +26,25 @@ NOT_APPLICABLE = {
 WEEKEND_MARKERS = ("weekend", "saturday", "sat ", "evening", "night", "bank holiday", "motorcycle")
 
 CUSTOMER_CAR_PARK_RE = re.compile(r"customer car park", re.I)
+NEGATED_CUSTOMER_CAR_PARK_RE = re.compile(r"no\s+customer car park", re.I)
 MAYBE_GENERIC_RE = re.compile(r"may be generic|VERIFY.{0,40}generic", re.I)
+
+# A capture column carrying one of these alongside a matched R9 phrase is
+# hedging ("NO OFFICIAL INFO ... verify on site"), not quoting the source's
+# own denial, so it must not count as an explicit statement under rule R9.
+R9_HEDGE_MARKERS = ("no official info", "verify")
+
+MAX_STAY_RE = re.compile(r"(\d+)\s*(hour|hr|hrs|hours|min|mins|minute|minutes)\b", re.I)
+
+
+def parse_max_stay_minutes(text):
+    """A number of hours/minutes stated in Max Stay (as captured), e.g.
+    "24 hours" or "90 mins". None when the column has no such number."""
+    match = MAX_STAY_RE.search(text or "")
+    if not match:
+        return None
+    n = int(match.group(1))
+    return n * 60 if match.group(2).lower().startswith("h") else n
 
 
 def record(place_id, fields=None, leave_for_grok=False, reason=""):
@@ -53,7 +71,7 @@ def matches_r9(text):
 def find_r9_quote(captured):
     for col in capture_fill.CAPTURE_COLS:
         text = captured.get(col, "")
-        if matches_r9(text):
+        if matches_r9(text) and not any(h in text.lower() for h in R9_HEDGE_MARKERS):
             return text
     return None
 
@@ -67,7 +85,13 @@ def parse_bands(charges_text):
 
     A per-minute tariff ("£0.10 per 15 minutes", the Royal Parks pattern)
     has no "<N>h ... £<price>" shape, so it returns no bands here and stays
-    left for Grok rather than being misread as hourly."""
+    left for Grok rather than being misread as hourly.
+
+    Stops at the first hour that is not greater than the one before it: a
+    car park with two unrelated schedules in the same sentence (a standard
+    tariff next to an emission-based or early-bird one) restarts its band
+    count from a small number, and that restart point is not a real next
+    band of the first schedule."""
     cutoff = len(charges_text)
     low = charges_text.lower()
     for marker in WEEKEND_MARKERS:
@@ -75,8 +99,16 @@ def parse_bands(charges_text):
         if idx != -1:
             cutoff = min(cutoff, idx)
     weekday_text = charges_text[:cutoff]
-    return [(int(h), float(p)) for h, p in
-            re.findall(r"(\d+)\s*h(?:ours?)?\b.{0,3}£\s?(\d+(?:\.\d{2})?)", weekday_text, re.I)]
+    matches = re.findall(r"(\d+)\s*h(?:ours?)?\b.{0,3}£\s?(\d+(?:\.\d{2})?)", weekday_text, re.I)
+    bands = []
+    prev_hours = 0
+    for h, p in matches:
+        hours = int(h)
+        if hours <= prev_hours:
+            break
+        bands.append((hours, float(p)))
+        prev_hours = hours
+    return bands
 
 
 def tariff_detail_from_bands(bands):
@@ -100,8 +132,11 @@ def who_can_park_for_commercial(captured_text):
 
 
 def extract_hours_osm(hours_text):
+    """"24/7", "24 hours", or "24HR"/"24Hr" (no space) all count. A bare
+    "00:00" timestamp does not: it is often a daily close time on a day
+    that is not open round the clock, not proof of 24/7."""
     low = hours_text.lower()
-    if "24 hour" in low or "24/7" in low or "00:00" in low:
+    if "24 hour" in low or "24/7" in low or re.search(r"24\s*hr", low):
         return "24/7"
     return None
 
@@ -134,7 +169,7 @@ def classify(sr, osm_row):
     if r9_quote:
         return no_parking_record(place_id, r9_quote.strip())
 
-    if CUSTOMER_CAR_PARK_RE.search(notes):
+    if CUSTOMER_CAR_PARK_RE.search(notes) and not NEGATED_CUSTOMER_CAR_PARK_RE.search(notes):
         return customer_car_park_record(place_id, notes)
 
     is_operator_car_park = any(k in type_text for k in
@@ -145,17 +180,21 @@ def classify(sr, osm_row):
 
     if is_operator_car_park and is_real_tariff(charges):
         bands = parse_bands(charges)
-        operator_match = re.search(r"(NCP|Q-Park|Euro Car Parks|CitiPark|APCOA[\w .()]*)", notes)
+        operator_match = re.search(r"(NCP|Q-Park|Euro Car Parks|CitiPark|APCOA[\w ()]*)", notes)
         operator = operator_match.group(1).strip() if operator_match else "Not published"
         control = "ANPR (Automatic Number Plate Recognition) camera" if "anpr" in enforcement.lower() else "Not published"
         hours_osm = extract_hours_osm(hours_raw) or "Not published"
+        max_stay_captured = captured.get("Max Stay (as captured)", "")
+        max_stay_minutes = parse_max_stay_minutes(max_stay_captured)
+        max_stay = (field(str(max_stay_minutes), "site", max_stay_captured[:150])
+                    if max_stay_minutes is not None else field("No limit", "site", charges[:200]))
         fields = {
             "can_park": field("Yes", "site", charges[:200]),
             "who_can_park": field(who_can_park_for_commercial(charges + " " + notes), "site", charges[:200]),
             "cost_type": field("Paid", "site", charges[:200]),
             "tariff_type": field("Banded by stay length", "site", charges[:200]),
             "tariff_detail": field(tariff_detail_from_bands(bands), "site", charges[:200]),
-            "max_stay_mins": field("No limit", "site", charges[:200]),
+            "max_stay_mins": max_stay,
             "hours_osm_format": field(hours_osm, "site", hours_raw[:120]),
             "hours_basis": field("Car park hours" if hours_osm != "Not published" else "Not published",
                                   "site", hours_raw[:120]),
