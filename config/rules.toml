@@ -76,3 +76,14 @@ risky_cost_types = ["Free"]
 risky_who_can_park = ["Anyone", "Anyone (paid)"]
 cautious_cost_types = ["Paid", "Free then paid", "Unknown"]
 cautious_who_can_park = ["Customers only", "Guests only", "Unknown"]
+
+[r8]
+# Text PP captured from an official page, sitting in the "(as captured)"
+# columns, Charges (as published), Enforcement Details or Notes, counts as
+# evidence from that page (captured 30-31 Oct 2026; R2: parking rules
+# rarely change). Only text about this exact site is site-specific; a
+# chain-wide policy line is Chain-wide / Chain policy, and under R7 never
+# sets Free or a max stay. Text that is only a status word is not evidence.
+captured_date = "2026-10-30 to 2026-10-31"
+status_words = ["UNCLEAR", "NOT PUBLISHED", "NOT STATED", "VERIFY", "TBC"]
+tfl_is_operator_source = true  # TfL's own data counts as Source Tier "Operator / council site"

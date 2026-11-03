@@ -73,7 +73,7 @@ def autopay_price_flag(sheet_row, first_price_text):
     return None
 
 
-def build_row_values(sheet_row, extracted, today):
+def build_row_values(sheet_row, extracted, today, verified_by=VERIFIED_BY):
     """Assemble the full set of column values for one row from what was
     read on the page (`extracted`, a dict of the same column names), plus
     the bookkeeping columns: Change Made, Notes/Review Flag appended (never
@@ -100,7 +100,7 @@ def build_row_values(sheet_row, extracted, today):
         new[REVIEW_FLAG] = f"{existing}{'; ' if existing else ''}{'; '.join(new_flags)}"
         new[FLAG_STATUS] = "Open"
 
-    new[fill.VERIFIED_BY] = VERIFIED_BY
+    new[fill.VERIFIED_BY] = verified_by
     new[fill.VERIFIED_DATE] = today.isoformat()
     if not sheet_row.get(fill.GEO_PRECISION) and "Geo Precision" not in new:
         new["Geo Precision"] = "Building"
