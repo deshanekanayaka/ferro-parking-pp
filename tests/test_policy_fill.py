@@ -21,8 +21,9 @@ def sheet_row(**kw):
     return base
 
 
-def osm_row(distance="", raw_tags=""):
-    return {"Place ID": "PP-1", "Car Park Distance (m)": distance, "OSM Raw Tags": raw_tags}
+def osm_row(distance="", raw_tags="", place_match=""):
+    return {"Place ID": "PP-1", "Car Park Distance (m)": distance, "OSM Raw Tags": raw_tags,
+            "OSM Place Match": place_match}
 
 
 # ---- branch a: chain policy, large format --------------------------------
@@ -176,6 +177,36 @@ def test_fast_food_without_drive_thru_is_a_small_venue():
                         "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
     branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
     assert branch == "b"
+
+
+def test_fast_food_as_its_own_osm_building_way_needs_research():
+    row = sheet_row(**{"Location Name": "McDonald's Example Road",
+                        "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance="", place_match=
+                                          "https://www.openstreetmap.org/way/123"), RULES)
+    assert branch == "c"
+
+
+def test_fast_food_as_an_osm_point_stays_a_small_venue():
+    row = sheet_row(**{"Location Name": "McDonald's Example Road",
+                        "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance="", place_match=
+                                          "https://www.openstreetmap.org/node/123"), RULES)
+    assert branch == "b"
+
+
+def test_fast_food_named_retail_park_needs_research():
+    row = sheet_row(**{"Location Name": "KFC Lombardy Retail Park",
+                        "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+
+
+def test_fast_food_named_retail_centre_needs_research():
+    row = sheet_row(**{"Location Name": "Burger King Hayes Retail Centre",
+                        "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
 
 
 def test_drive_thru_mentioned_only_in_place_category_is_not_enough():

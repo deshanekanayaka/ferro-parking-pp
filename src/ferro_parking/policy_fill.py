@@ -124,14 +124,31 @@ def is_drive_thru(sheet_row, osm_row):
     return tags.get("drive_through") == "yes"
 
 
+FAST_FOOD_OWN_SITE_HINTS = ("drive", "retail park", "retail centre")
+
+
+def is_fast_food_own_site(sheet_row, osm_row):
+    """A fast food row needs research, not presumed no parking, when it
+    reads as its own standalone site rather than a shopfront sharing a
+    building with other shops: its name or Type names a drive(-thru),
+    a retail park, or a retail centre, or OSM maps the place itself with
+    its own building area (a way or relation) instead of a plain point."""
+    text = f"{sheet_row.get('Type (as captured)', '')} {sheet_row.get(LOCATION_NAME, '')}".lower()
+    if any(_contains_word(text, h) for h in FAST_FOOD_OWN_SITE_HINTS):
+        return True
+    match_url = osm_row.get("OSM Place Match", "") or ""
+    return "/way/" in match_url or "/relation/" in match_url
+
+
 def small_venue_category(sheet_row, osm_row, rules):
     """R10's small venue categories, matched against Place Category and
     Type (as captured) together; "fast food" only counts without a
-    drive-thru, which has its own parking."""
+    drive-thru and without its own OSM building area, which has its own
+    parking either way."""
     category_text = f"{sheet_row.get('Place Category', '')} {sheet_row.get('Type (as captured)', '')}"
     low = category_text.lower()
     if _contains_word(low, "fast food"):
-        return not is_drive_thru(sheet_row, osm_row)
+        return not is_drive_thru(sheet_row, osm_row) and not is_fast_food_own_site(sheet_row, osm_row)
     return any(_contains_word(low, c) for c in rules.r10_small_venue_categories if c != "fast food")
 
 
