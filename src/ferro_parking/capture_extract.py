@@ -34,6 +34,12 @@ MAYBE_GENERIC_RE = re.compile(r"may be generic|VERIFY.{0,40}generic", re.I)
 # own denial, so it must not count as an explicit statement under rule R9.
 R9_HEDGE_MARKERS = ("no official info", "verify")
 
+# "N/A on site (no car park listed)": the capture agent's own shorthand for
+# an absent listing, written in exactly this parenthetical shape, not a
+# quote of the source denying parking. Any "(no ... listed)" disqualifies
+# the whole column under rule R9, the same as a hedge marker.
+R9_SHORTHAND_LISTED_RE = re.compile(r"\(no\b[^()]{0,60}\blisted\)", re.I)
+
 MAX_STAY_RE = re.compile(r"(\d+)\s*(hour|hr|hrs|hours|min|mins|minute|minutes)\b", re.I)
 
 
@@ -71,7 +77,8 @@ def matches_r9(text):
 def find_r9_quote(captured):
     for col in capture_fill.CAPTURE_COLS:
         text = captured.get(col, "")
-        if matches_r9(text) and not any(h in text.lower() for h in R9_HEDGE_MARKERS):
+        if (matches_r9(text) and not any(h in text.lower() for h in R9_HEDGE_MARKERS)
+                and not R9_SHORTHAND_LISTED_RE.search(text)):
             return text
     return None
 

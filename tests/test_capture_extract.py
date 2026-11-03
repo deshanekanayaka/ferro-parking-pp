@@ -208,6 +208,18 @@ def test_sat_sun_only_bands_are_not_read_as_an_all_days_rate():
     assert ce.parse_bands(charges) == [(2, 2.20), (4, 4.00)]
 
 
+def test_r9_does_not_match_the_no_x_listed_shorthand_even_without_a_hedge_word():
+    # "N/A on site (no car park listed)" (Asda Heston Express Petrol,
+    # Hounslow): the literal phrase "no car park" matches the R9 phrase
+    # list, but this parenthetical shape is the capture agent's own
+    # shorthand for an absent listing, not a quote of the source denying
+    # parking, and carries no "NO OFFICIAL INFO" or "verify" hedge word.
+    row = sheet_row("PP-004369", type_captured="Supermarket",
+                     notes="N/A on site (no car park listed)")
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"].get("can_park", {}).get("value") != "No"
+
+
 def test_r9_does_not_match_inside_a_hedged_no_official_info_note():
     # "page lists no car park" sits inside a hedge ("NO OFFICIAL INFO ...
     # verify on site"), so it is capture-side hedging, not the source's own
