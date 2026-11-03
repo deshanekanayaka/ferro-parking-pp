@@ -194,6 +194,21 @@ def test_not_sun_tag_keeps_the_band_unlike_sat_sun_only():
     assert ce.parse_bands(charges) == [(3, 15.00), (4, 20.00), (5, 25.00)]
 
 
+def test_operator_ignores_a_see_other_row_cross_reference():
+    # Rainham (Essex) Station (Havering): Notes cross-references "see NCP
+    # row 496", a pointer to a different database row, not a statement that
+    # NCP operates this c2c-run station's car park.
+    row = sheet_row(
+        "PP-000849", type_captured="Station Car Park (National Rail)",
+        charges="UNCLEAR – no tariff published on NRE",
+        hours="Not stated on NRE",
+        notes=("Station operator: c2c. UNCLEAR – car park operator not stated on NRE. "
+               "Entrance to Rainham Station car park – see NCP row 496."),
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["operator"]["value"] == "Not published"
+
+
 def test_r9_rejects_a_boilerplate_swr_check_for_a_non_swr_station():
     # Goodmayes (Redbridge): Station operator is Elizabeth line, but the
     # only R9-qualifying text cites checking South Western Railway's own

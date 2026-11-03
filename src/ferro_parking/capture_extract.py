@@ -184,10 +184,18 @@ OPERATOR_RE = re.compile(r"(NCP|Q-Park|Euro Car Parks|CitiPark|APCOA[\w ()]*)")
 ECP_RE = re.compile(r"\bECP\b")
 
 
+CROSS_REFERENCE_RE = re.compile(r"\bsee\b[\w\s()/-]{0,20}\brow\b\s*\d+", re.I)
+
+
 def operator_name_from(type_text, notes):
     """Type (as captured) often names the operator plainly ("Euro Car
     Parks"); Notes sometimes only gives the abbreviation ("ECP"). Check
-    Type (as captured) first, since it is the less ambiguous of the two."""
+    Type (as captured) first, since it is the less ambiguous of the two.
+
+    A "see NCP row 496" cross-reference to a different database row is not
+    a statement that NCP operates this car park, so it is stripped from
+    Notes before matching."""
+    notes = CROSS_REFERENCE_RE.sub("", notes)
     match = OPERATOR_RE.search(type_text) or OPERATOR_RE.search(notes)
     if match:
         return match.group(1).strip()
