@@ -186,6 +186,19 @@ def test_negated_customer_car_park_is_not_read_as_a_customer_car_park():
     assert rec["fields"].get("who_can_park", {}).get("value") != "Customers only"
 
 
+def test_operator_read_from_type_captured_when_notes_only_has_the_abbreviation():
+    # Type (as captured) names "Euro Car Parks" plainly; Notes only has the
+    # abbreviation "ECP", which the old notes-only regex never matched.
+    row = sheet_row(
+        "PP-003922", type_captured="Euro Car Parks",
+        charges="1h £4.00; 2h £7.00",
+        hours="Mon-Sun 24 hours",
+        notes="ECP car park; CCTV in operation.",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["operator"]["value"] == "Euro Car Parks"
+
+
 def test_r9_does_not_match_inside_a_hedged_no_official_info_note():
     # "page lists no car park" sits inside a hedge ("NO OFFICIAL INFO ...
     # verify on site"), so it is capture-side hedging, not the source's own

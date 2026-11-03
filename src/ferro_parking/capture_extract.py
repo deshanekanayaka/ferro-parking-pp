@@ -127,6 +127,22 @@ def is_real_tariff(charges_text):
     return len(parse_bands(charges_text)) >= 2
 
 
+OPERATOR_RE = re.compile(r"(NCP|Q-Park|Euro Car Parks|CitiPark|APCOA[\w ()]*)")
+ECP_RE = re.compile(r"\bECP\b")
+
+
+def operator_name_from(type_text, notes):
+    """Type (as captured) often names the operator plainly ("Euro Car
+    Parks"); Notes sometimes only gives the abbreviation ("ECP"). Check
+    Type (as captured) first, since it is the less ambiguous of the two."""
+    match = OPERATOR_RE.search(type_text) or OPERATOR_RE.search(notes)
+    if match:
+        return match.group(1).strip()
+    if ECP_RE.search(notes):
+        return "Euro Car Parks"
+    return "Not published"
+
+
 def who_can_park_for_commercial(captured_text):
     return "Anyone (paid)"  # a named commercial car park operator: open to any paying driver
 
@@ -180,8 +196,7 @@ def classify(sr, osm_row):
 
     if is_operator_car_park and is_real_tariff(charges):
         bands = parse_bands(charges)
-        operator_match = re.search(r"(NCP|Q-Park|Euro Car Parks|CitiPark|APCOA[\w ()]*)", notes)
-        operator = operator_match.group(1).strip() if operator_match else "Not published"
+        operator = operator_name_from(type_text, notes)
         control = "ANPR (Automatic Number Plate Recognition) camera" if "anpr" in enforcement.lower() else "Not published"
         hours_osm = extract_hours_osm(hours_raw) or "Not published"
         max_stay_captured = captured.get("Max Stay (as captured)", "")
@@ -209,8 +224,7 @@ def classify(sr, osm_row):
     confirmed_paid = "public pay car park" in notes.lower() or "pay on the day" in charges.lower()
     hours_known = hours_raw and "no official info" not in hours_raw.lower()
     if is_operator_car_park and tariff_unclear and (hours_known or confirmed_paid):
-        operator_match = re.search(r"(NCP|Q-Park|Euro Car Parks|CitiPark)", notes)
-        operator = operator_match.group(1) if operator_match else "Not published"
+        operator = operator_name_from(type_text, notes)
         hours_osm = (extract_hours_osm(hours_raw) or "Not published") if hours_known else "Not published"
         can_park = "Yes" if confirmed_paid else "Conditional"
         who_can_park = "Anyone (paid)" if confirmed_paid else "Unknown"
