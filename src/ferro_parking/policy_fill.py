@@ -36,7 +36,7 @@ FLAG_STATUS = fill.FLAG_STATUS
 VERIFIED_BY = "Policy script"
 
 GOOGLE_THIRD_PARTY_SOURCE_TIER = "Google search / third-party"
-OPERATOR_SOURCE_TIER = "Operator / council site"
+CHAIN_OFFICIAL_SOURCE_TIER = "Official site - text"
 
 FAST_FOOD_DRIVE_THRU_HINTS = ("drive-thru", "drive thru", "drivethru")
 
@@ -70,34 +70,45 @@ def has_nearby_car_park(osm_row, rules):
 
 # ---------------------------------------------------------------- categories
 
-def is_fast_food_without_drive_thru(category_text):
-    low = category_text.lower()
-    return not any(h in low for h in FAST_FOOD_DRIVE_THRU_HINTS)
-
-
 def _contains_word(text, phrase):
     """Whole-word match: plain substring would read "Public Car Park" as
     containing "pub"."""
     return re.search(r"\b" + re.escape(phrase) + r"\b", text) is not None
 
 
-def small_venue_category(sheet_row, rules):
+def is_drive_thru(sheet_row, osm_row):
+    """Checked against Type (as captured), Location Name, and the OSM
+    drive_through tag, since a drive-thru is not always named in Type:
+    the chain name alone ("McDonald's Peggy Bedford (Drive-Thru)") or the
+    OSM tag can be the only place it shows up."""
+    text = f"{sheet_row.get('Type (as captured)', '')} {sheet_row.get(LOCATION_NAME, '')}".lower()
+    if any(_contains_word(text, h) for h in FAST_FOOD_DRIVE_THRU_HINTS):
+        return True
+    tags = fill.parse_tags(osm_row.get("OSM Raw Tags", ""))
+    return tags.get("drive_through") == "yes"
+
+
+def small_venue_category(sheet_row, osm_row, rules):
     """R10's small venue categories, matched against Place Category and
     Type (as captured) together; "fast food" only counts without a
     drive-thru, which has its own parking."""
     category_text = f"{sheet_row.get('Place Category', '')} {sheet_row.get('Type (as captured)', '')}"
     low = category_text.lower()
     if _contains_word(low, "fast food"):
-        return is_fast_food_without_drive_thru(low)
+        return not is_drive_thru(sheet_row, osm_row)
     return any(_contains_word(low, c) for c in rules.r10_small_venue_categories if c != "fast food")
 
 
 # ---------------------------------------------------------------- branch a: chain policy
 
 def chain_source_tier(chain_key, sheet_row):
+    """"Official site - text" when the chain's own domain is in Source
+    URLs, never "Operator / council site" (that tier is for an operator
+    or council's own site-specific page, not a chain's general policy
+    page)."""
     urls = (sheet_row.get("Source URLs (primary first)", "") or "").lower()
     if chain_key and chain_key.replace(" ", "") in urls.replace(" ", ""):
-        return OPERATOR_SOURCE_TIER
+        return CHAIN_OFFICIAL_SOURCE_TIER
     return GOOGLE_THIRD_PARTY_SOURCE_TIER
 
 
@@ -186,7 +197,7 @@ def classify(sheet_row, osm_row, rules):
         fields, extra_notes, extra_flags = chain_policy_fields(sheet_row, chain_key, chain, rules)
         return "a", (fields, extra_notes, extra_flags), None
 
-    if small_venue_category(sheet_row, rules) and not has_nearby_car_park(osm_row, rules):
+    if small_venue_category(sheet_row, osm_row, rules) and not has_nearby_car_park(osm_row, rules):
         fields, extra_notes, extra_flags = presumed_no_parking_fields()
         return "b", (fields, extra_notes, extra_flags), None
 

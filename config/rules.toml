@@ -132,7 +132,9 @@ large_formats = [
 ]
 convenience_formats = [
     ["tesco", "express"], ["tesco", "metro"], ["sainsburys", "local"],
-    ["little", "waitrose"], ["simply", "food"], ["co", "op"],
+    # Plain "Waitrose" and "Waitrose & Partners" count here too, not just
+    # "Little Waitrose": Waitrose runs no large-format branch of its own.
+    ["waitrose"], ["simply", "food"], ["co", "op"],
 ]
 
 # A Presumed Can Park? = No is allowed only for these small venue types, and

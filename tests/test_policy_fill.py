@@ -21,8 +21,8 @@ def sheet_row(**kw):
     return base
 
 
-def osm_row(distance=""):
-    return {"Place ID": "PP-1", "Car Park Distance (m)": distance}
+def osm_row(distance="", raw_tags=""):
+    return {"Place ID": "PP-1", "Car Park Distance (m)": distance, "OSM Raw Tags": raw_tags}
 
 
 # ---- branch a: chain policy, large format --------------------------------
@@ -62,7 +62,15 @@ def test_chain_source_tier_is_official_when_chain_name_in_source_url():
     row = sheet_row(**{"Source URLs (primary first)": "https://www.tesco.com/store-locator/x"})
     branch, result, reason = pf.classify(row, osm_row(), RULES)
     fields, notes, flags = result
-    assert fields["Source Tier"] == pf.OPERATOR_SOURCE_TIER
+    assert fields["Source Tier"] == pf.CHAIN_OFFICIAL_SOURCE_TIER
+
+
+def test_chain_source_tier_is_never_operator_council_site():
+    row = sheet_row(**{"Source URLs (primary first)": "https://www.tesco.com/store-locator/x"})
+    branch, result, reason = pf.classify(row, osm_row(), RULES)
+    fields, notes, flags = result
+    assert fields["Source Tier"] != "Operator / council site"
+    assert fields["Specificity"] == "Chain-wide"
 
 
 def test_chain_source_tier_is_third_party_with_no_chain_url():
@@ -76,6 +84,26 @@ def test_hours_basis_store_hours_when_captured_text_says_so():
     branch, result, reason = pf.classify(row, osm_row(), RULES)
     fields, notes, flags = result
     assert fields["Hours Basis"] == "Store hours"
+
+
+# ---- Waitrose: a convenience format, not a large one ----------------------
+def test_plain_waitrose_is_convenience_not_large():
+    row = sheet_row(**{"Location Name": "Waitrose Nine Elms"})
+    assert RULES.format_for(row["Location Name"]) == "convenience"
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+    assert "convenience format" in reason
+
+
+def test_waitrose_and_partners_is_convenience():
+    row = sheet_row(**{"Location Name": "Waitrose & Partners Clapham"})
+    assert RULES.format_for(row["Location Name"]) == "convenience"
+
+
+def test_plain_waitrose_with_nearby_car_park_gets_chain_policy():
+    row = sheet_row(**{"Location Name": "Waitrose Nine Elms"})
+    branch, result, reason = pf.classify(row, osm_row(distance="15"), RULES)
+    assert branch == "a"
 
 
 # ---- branch a: convenience format needs a nearby OSM car park ------------
@@ -121,17 +149,41 @@ def test_small_venue_with_a_nearby_car_park_is_needs_research():
     assert branch == "c"
 
 
-def test_fast_food_with_drive_thru_is_not_a_small_venue():
+def test_fast_food_drive_thru_named_in_type_is_not_a_small_venue():
     row = sheet_row(**{"Location Name": "McDonald's North Acton",
-                        "Place Category": "Fast food (drive-thru)",
-                        "Type (as captured)": "Fast food restaurant"})
+                        "Place Category": "Fast food",
+                        "Type (as captured)": "Fast food restaurant (drive-thru)"})
     branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+
+
+def test_fast_food_drive_thru_named_in_location_name_is_not_a_small_venue():
+    row = sheet_row(**{"Location Name": "McDonald's Peggy Bedford (Drive-Thru)",
+                        "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+
+
+def test_fast_food_drive_thru_tagged_in_osm_is_not_a_small_venue():
+    row = sheet_row(**{"Location Name": "KFC Hayes", "Place Category": "Fast food",
+                        "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance="", raw_tags="drive_through=yes"), RULES)
     assert branch == "c"
 
 
 def test_fast_food_without_drive_thru_is_a_small_venue():
     row = sheet_row(**{"Location Name": "McDonald's Baker Street",
                         "Place Category": "Fast food", "Type (as captured)": "Fast food restaurant"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "b"
+
+
+def test_drive_thru_mentioned_only_in_place_category_is_not_enough():
+    # R10's fix: only Type, Location Name, or an OSM tag count, not Place
+    # Category, since that field is not where a drive-thru is confirmed.
+    row = sheet_row(**{"Location Name": "McDonald's Example Road",
+                        "Place Category": "Fast food (drive-thru)",
+                        "Type (as captured)": "Fast food restaurant"})
     branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
     assert branch == "b"
 
