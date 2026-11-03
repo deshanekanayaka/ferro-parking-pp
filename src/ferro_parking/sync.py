@@ -236,6 +236,29 @@ def check_alignment(clean_rows, orig_rows):
     return n - len(mismatches), mismatches
 
 
+def captured_can_park_by_place_id(clean_rows, orig_rows):
+    """ALL LONDON's own "Can Park? (Yes/No/Conditional)" (Brandon and
+    Grogbot's original rough read), keyed by the clean tab's Place ID.
+    The two tabs stay row for row aligned: the original 4773 rows are
+    aligned by name (see check_alignment), and every row sync_apply has
+    appended since keeps that same order, so position is the join key.
+    A clean row past the end of orig_rows (should not happen) is simply
+    left out."""
+    out = {}
+    for clean_row, orig_row in zip(clean_rows, orig_rows):
+        place_id = clean_row.get("Place ID", "")
+        if place_id:
+            out[place_id] = orig_row.get("Can Park? (Yes/No/Conditional)", "")
+    return out
+
+
+def load_captured_can_park(service):
+    from . import sheets
+    _, clean_rows = sheets.read_tab(service, tab=CLEAN_TAB)
+    _, orig_rows = sheets.read_tab(service, tab=ORIG_TAB)
+    return captured_can_park_by_place_id(clean_rows, orig_rows)
+
+
 def main(argv=None):
     import argparse
     from . import sheets

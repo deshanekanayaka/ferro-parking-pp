@@ -248,7 +248,7 @@ def decide_verification_result(new, source_tier):
     return "Confirmed, details not published"
 
 
-def record_to_new(sheet_row, osm_row, record, today):
+def record_to_new(sheet_row, osm_row, record, today, captured_can_park):
     """Turn a validated record into the sheet's new-value dict, matching
     fill.py's and page_fill.py's conventions (Notes/Review Flag appended,
     protected columns never touched, Verification Result written last)."""
@@ -277,17 +277,18 @@ def record_to_new(sheet_row, osm_row, record, today):
 
     extracted["Rules Summary"] = rules_summary(extracted)
 
-    new = page_fill.build_row_values(sheet_row, extracted, today, verified_by=VERIFIED_BY)
+    new = page_fill.build_row_values(sheet_row, extracted, today, captured_can_park,
+                                      verified_by=VERIFIED_BY)
     return new
 
 
-def finish_record(sheet_row, osm_row, record, today):
+def finish_record(sheet_row, osm_row, record, today, captured_can_park):
     """Validate a model record and, if valid, return (new, None). If not,
     return (None, violations)."""
     violations = validate_record(record)
     if violations:
         return None, violations
-    new = record_to_new(sheet_row, osm_row, record, today)
+    new = record_to_new(sheet_row, osm_row, record, today, captured_can_park)
     shared_violations = page_fill.consistency_checks(new)
     if shared_violations:
         return None, shared_violations
@@ -311,10 +312,13 @@ def main(argv=None):
     with open(osm_path, newline="", encoding="utf-8") as f:
         osm_rows = list(csv.DictReader(f))
 
+    from . import sync as sync_mod
+
     service = sheets.get_service()
     headers, sheet_rows = sheets.read_tab(service)
     candidates = candidate_rows(sheet_rows, osm_rows, args.borough)
     by_place_id = {sr[fill.PLACE_ID]: (sr, osm_row) for sr, osm_row in candidates}
+    captured_can_park = sync_mod.load_captured_can_park(service)
 
     out_dir = Path("data/runs") / today.isoformat() / "capture" / args.borough
     extracted_path = Path(args.extracted) if args.extracted else out_dir / "extracted.jsonl"
@@ -345,7 +349,7 @@ def main(argv=None):
         if record.get("leave_for_grok"):
             left_for_grok.append((place_id, record.get("reason", "")))
             continue
-        new, violations = finish_record(sheet_row, osm_row, record, today)
+        new, violations = finish_record(sheet_row, osm_row, record, today, captured_can_park)
         if new is None:
             left_for_grok.append((place_id, "; ".join(violations)))
             continue

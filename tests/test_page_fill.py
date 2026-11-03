@@ -88,10 +88,15 @@ def test_autopay_price_flag_none_when_not_autopay():
 
 
 # ---- build_row_values: Notes/Review Flag appending, protected columns ---------
+def captured(value="Conditional", place_id="PP-1"):
+    """ALL LONDON's own Can Park?, by Place ID."""
+    return {place_id: value}
+
+
 def test_notes_appended_not_replaced():
     sr = sheet_row(Notes="Existing note.")
     extracted = {"Can Park? (Yes/No/Conditional)": "Conditional", "_notes": ["Page says free for 2 hrs"]}
-    new = pf.build_row_values(sr, extracted, TODAY)
+    new = pf.build_row_values(sr, extracted, TODAY, captured())
     assert new[pf.NOTES] == "Existing note. | Page says free for 2 hrs"
 
 
@@ -99,24 +104,35 @@ def test_review_flag_appended_and_flag_status_opened():
     sr = sheet_row(**{"Review Flag": "Possible duplicate of row 5"})
     extracted = {"Can Park? (Yes/No/Conditional)": "Conditional",
                  "_flags": ["Autopay price differs: sheet £2.50, source £3.00"]}
-    new = pf.build_row_values(sr, extracted, TODAY)
+    new = pf.build_row_values(sr, extracted, TODAY, captured())
     assert new[pf.REVIEW_FLAG] == "Possible duplicate of row 5; Autopay price differs: sheet £2.50, source £3.00"
     assert new[pf.FLAG_STATUS] == "Open"
 
 
 def test_change_made_set_when_can_park_differs_from_captured():
-    sr = sheet_row(**{"Can Park? (Yes/No/Conditional)": "Unknown"})
-    new = pf.build_row_values(sr, {"Can Park? (Yes/No/Conditional)": "Yes"}, TODAY)
+    # ALL LONDON's own Can Park? was "Unknown"; the clean tab's current
+    # value (which may be blank, cleared, or unresearched) plays no part.
+    sr = sheet_row()
+    new = pf.build_row_values(sr, {"Can Park? (Yes/No/Conditional)": "Yes"}, TODAY, captured("Unknown"))
+    assert new[pf.fill.CHANGE_MADE] == "Yes"
+
+
+def test_change_made_set_from_all_london_even_when_clean_tab_blank():
+    # The clean tab's own Can Park? is blank (cleared); ALL LONDON still
+    # says "No", so writing "Conditional" still counts as a change.
+    sr = sheet_row(**{"Can Park? (Yes/No/Conditional)": ""})
+    new = pf.build_row_values(sr, {"Can Park? (Yes/No/Conditional)": "Conditional"}, TODAY, captured("No"))
     assert new[pf.fill.CHANGE_MADE] == "Yes"
 
 
 def test_build_row_values_never_touches_a_protected_column():
     with pytest.raises(AssertionError):
-        pf.build_row_values(sheet_row(), {"Latitude": "1"}, TODAY)
+        pf.build_row_values(sheet_row(), {"Latitude": "1"}, TODAY, captured())
 
 
 def test_build_row_values_sets_verified_by_and_date():
-    new = pf.build_row_values(sheet_row(), {"Can Park? (Yes/No/Conditional)": "Conditional"}, TODAY)
+    new = pf.build_row_values(sheet_row(), {"Can Park? (Yes/No/Conditional)": "Conditional"}, TODAY,
+                               captured())
     assert new[pf.fill.VERIFIED_BY] == "Claude (page check)"
     assert new[pf.fill.VERIFIED_DATE] == "2026-11-02"
 

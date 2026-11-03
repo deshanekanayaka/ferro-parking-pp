@@ -34,21 +34,27 @@ def osm_row(tags, **kw):
     return base
 
 
+def captured(value="Conditional", place_id="PP-1"):
+    """ALL LONDON's own Can Park?, by Place ID; matches the default
+    sheet_row()'s own Can Park? unless a test needs them to differ."""
+    return {place_id: value}
+
+
 # ---- rule R7: Free and Anyone need site-specific evidence -----------------
 def test_fee_no_on_customers_only_gives_free():
-    new = fill.derive_values(sheet_row(), osm_row("access=customers; fee=no"), RULES, TODAY)
+    new = fill.derive_values(sheet_row(), osm_row("access=customers; fee=no"), RULES, TODAY, captured())
     assert new["Cost Type"] == "Free"
 
 
 def test_fee_no_on_untagged_car_park_gives_unknown_not_free():
-    new = fill.derive_values(sheet_row(), osm_row("fee=no"), RULES, TODAY)
+    new = fill.derive_values(sheet_row(), osm_row("fee=no"), RULES, TODAY, captured())
     assert new["Cost Type"] == "Unknown"
     assert "R7" in new["Notes"]
 
 
 def test_chain_paid_vs_osm_free_gives_unknown_and_flag():
     new = fill.derive_values(sheet_row(**{"Location Name": "NCP Somewhere"}),
-                              osm_row("access=customers; fee=no"), RULES, TODAY)
+                              osm_row("access=customers; fee=no"), RULES, TODAY, captured())
     assert new["Cost Type"] == "Unknown"
     assert "Review Flag" in new
     assert "rule R7" in new["Review Flag"]
@@ -58,14 +64,15 @@ def test_chain_free_hint_never_sets_cost_type_free():
     # Asda's chain rule says Free, but with no fee tag at all OSM gives nothing:
     # the chain hint must never set Cost Type on its own.
     new = fill.derive_values(sheet_row(**{"Location Name": "Asda Example"}),
-                              osm_row("access=customers"), RULES, TODAY)
+                              osm_row("access=customers"), RULES, TODAY, captured())
     assert new["Cost Type"] != "Free"
     assert "hint only" in new["Notes"]
 
 
 # ---- eligibility filter ------------------------------------------------------
 def test_eligible_row_passes_all_conditions():
-    checks = fill.check_eligibility(sheet_row(), osm_row("access=customers; fee=no"), "Haringey", TODAY)
+    checks = fill.check_eligibility(sheet_row(), osm_row("access=customers; fee=no"), "Haringey", TODAY,
+                                     captured())
     assert fill.is_eligible(checks)
 
 
@@ -74,36 +81,44 @@ def test_eligible_row_passes_all_conditions():
     ("Verification Result", "Confirmed", "Verification Result blank"),
     ("Verified By", "Someone else", "Verified By blank or PP (validation)"),
     ("Ferro Autopay", "✅", "Ferro Autopay not checked"),
-    ("Can Park? (Yes/No/Conditional)", "No", "captured Can Park is not No"),
 ])
 def test_eligibility_fails_on_each_condition(field, value, failed):
     checks = fill.check_eligibility(sheet_row(**{field: value}), osm_row("access=customers; fee=no"),
-                                     "Haringey", TODAY)
+                                     "Haringey", TODAY, captured())
     assert checks[failed] is False
+    assert not fill.is_eligible(checks)
+
+
+def test_eligibility_fails_when_all_london_s_own_can_park_is_no():
+    # The clean tab's own Can Park? may be blank (cleared or not yet
+    # researched); the eligibility check reads ALL LONDON's instead.
+    checks = fill.check_eligibility(sheet_row(), osm_row("access=customers; fee=no"), "Haringey", TODAY,
+                                     captured("No"))
+    assert checks["captured Can Park is not No"] is False
     assert not fill.is_eligible(checks)
 
 
 def test_route_must_start_with_c():
     checks = fill.check_eligibility(sheet_row(), osm_row("access=customers", Route="D. Full research"),
-                                     "Haringey", TODAY)
+                                     "Haringey", TODAY, captured())
     assert checks["Route starts with C"] is False
 
 
 def test_car_park_link_must_be_adjacent_or_brand():
     checks = fill.check_eligibility(sheet_row(), osm_row("access=customers", **{
-        "Car Park Link": "Near precise pin (place not matched)"}), "Haringey", TODAY)
+        "Car Park Link": "Near precise pin (place not matched)"}), "Haringey", TODAY, captured())
     assert checks["Car Park Link is adjacent or brand match"] is False
 
 
 def test_car_park_edited_over_2_years_ago_fails():
     checks = fill.check_eligibility(sheet_row(), osm_row("access=customers", **{
-        "Car Park Last Edited": "2020-01-01"}), "Haringey", TODAY)
+        "Car Park Last Edited": "2020-01-01"}), "Haringey", TODAY, captured())
     assert checks["Car Park Last Edited within 2 years"] is False
 
 
 # ---- protected columns -------------------------------------------------------
 def test_derive_values_never_touches_a_protected_column():
-    new = fill.derive_values(sheet_row(), osm_row("access=customers; fee=no"), RULES, TODAY)
+    new = fill.derive_values(sheet_row(), osm_row("access=customers; fee=no"), RULES, TODAY, captured())
     for col in new:
         assert col not in fill.PROTECTED_COLUMNS
         assert not col.endswith(fill.PROTECTED_SUFFIXES)
@@ -119,7 +134,7 @@ def test_assert_not_protected_raises_on_protected_column():
 # ---- Notes appending ----------------------------------------------------------
 def test_notes_keeps_existing_text_and_appends_osm():
     new = fill.derive_values(sheet_row(Notes="Store 2332 (main)."),
-                              osm_row("access=customers; fee=no; capacity=30"), RULES, TODAY)
+                              osm_row("access=customers; fee=no; capacity=30"), RULES, TODAY, captured())
     assert new["Notes"].startswith("Store 2332 (main).")
     assert " | OSM: " in new["Notes"]
     assert "capacity=30" in new["Notes"]
@@ -127,14 +142,15 @@ def test_notes_keeps_existing_text_and_appends_osm():
 
 def test_notes_omitted_when_nothing_to_add():
     new = fill.derive_values(sheet_row(Notes="Existing note."),
-                              osm_row("access=customers; fee=no"), RULES, TODAY)
+                              osm_row("access=customers; fee=no"), RULES, TODAY, captured())
     assert "Notes" not in new
 
 
 def test_review_flag_appends_without_losing_existing_text():
-    new = fill.derive_values(sheet_row(**{"Can Park? (Yes/No/Conditional)": "Yes",
-                                           "Review Flag": "Possible duplicate of row 5"}),
-                              osm_row("access=customers; fee=no"), RULES, TODAY)
+    # ALL LONDON's own Can Park? was "Yes"; the clean tab's current value
+    # is irrelevant to this check now, only the captured_can_park lookup is.
+    new = fill.derive_values(sheet_row(**{"Review Flag": "Possible duplicate of row 5"}),
+                              osm_row("access=customers; fee=no"), RULES, TODAY, captured("Yes"))
     assert new["Review Flag"].startswith("Possible duplicate of row 5")
     assert "Can Park changed from Yes to Conditional" in new["Review Flag"]
     assert new["Flag Status"] == "Open"

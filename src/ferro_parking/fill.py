@@ -26,6 +26,7 @@ from urllib.parse import quote
 
 from . import rules as rules_mod
 from . import sheets
+from . import sync as sync_mod
 from .osm_match import parse_maxstay
 
 # ---------------------------------------------------------------- columns
@@ -76,8 +77,11 @@ def edited_within_2_years(osm_row, today):
     return (today - edited).days <= 730
 
 
-def check_eligibility(sheet_row, osm_row, borough, today):
-    """Name -> True (passes) / False (fails), for each of the 8 conditions."""
+def check_eligibility(sheet_row, osm_row, borough, today, captured_can_park):
+    """Name -> True (passes) / False (fails), for each of the 8 conditions.
+    captured_can_park: {place_id: value}, ALL LONDON's own Can Park? read
+    by Place ID (sync.captured_can_park_by_place_id), not the clean tab's
+    own column, which a cleared or not-yet-researched row leaves blank."""
     return {
         "Borough matches": sheet_row.get(BOROUGH, "") == borough,
         "Route starts with C": osm_row.get("Route", "").strip().startswith("C"),
@@ -87,7 +91,8 @@ def check_eligibility(sheet_row, osm_row, borough, today):
         "Verification Result blank": sheet_row.get(VERIFICATION_RESULT, "") == "",
         "Verified By blank or PP (validation)": sheet_row.get(VERIFIED_BY, "") in ("", "PP (validation)"),
         "Ferro Autopay not checked": sheet_row.get(FERRO_AUTOPAY, "") != "✅",
-        "captured Can Park is not No": sheet_row.get(CAN_PARK, "") != "No",
+        "captured Can Park is not No":
+            captured_can_park.get(sheet_row.get(PLACE_ID, ""), "") != "No",
     }
 
 
@@ -185,8 +190,8 @@ def derive_operator(tags, rules, chain, notes):
     return op or "Not published"
 
 
-def derive_can_park(sheet_row, flags):
-    captured = sheet_row.get(CAN_PARK, "")
+def derive_can_park(sheet_row, flags, captured_can_park):
+    captured = captured_can_park.get(sheet_row.get(PLACE_ID, ""), "")
     changed = captured != "Conditional"
     if changed:
         flags.append(f"Can Park changed from {captured or 'blank'} to Conditional (OSM)")
@@ -260,12 +265,12 @@ def decision_reason(osm_row, tags, who_can_park, cost):
             "Confirmed, details not published: max stay and hours are not published, and OSM is a weak source.")
 
 
-def derive_values(sheet_row, osm_row, rules, today):
+def derive_values(sheet_row, osm_row, rules, today, captured_can_park):
     """The full set of column -> new value for one eligible row. Only
     includes a column when this run actually changes it."""
     tags = parse_tags(osm_row.get("OSM Raw Tags", ""))
     notes_extra, flags = [], []
-    can_park, change_made = derive_can_park(sheet_row, flags)
+    can_park, change_made = derive_can_park(sheet_row, flags, captured_can_park)
     who_can_park = derive_who_can_park(tags, sheet_row, rules, notes_extra)
     cost = derive_cost(tags, notes_extra)
     chain = apply_chain_rules(sheet_row.get(LOCATION_NAME, ""), cost, notes_extra, flags, rules)
@@ -340,14 +345,14 @@ def review_answer(new):
     return ", ".join(bits)
 
 
-def build_plan_undo_review(eligible, rules, today):
+def build_plan_undo_review(eligible, rules, today, captured_can_park):
     """eligible: list of (sheet_row, osm_row). Returns (plan, undo, dry_run_rows, review_rows)."""
     plan, undo, dry_run_rows, review_rows = [], [], [], []
     for sheet_row, osm_row in eligible:
         sheet_row_num = sheet_row["_sheet_row"]
         place_id = sheet_row.get(PLACE_ID, "")
         name = sheet_row.get(LOCATION_NAME, "")
-        new = derive_values(sheet_row, osm_row, rules, today)
+        new = derive_values(sheet_row, osm_row, rules, today, captured_can_park)
         old = {col: sheet_row.get(col, "") for col in new}
         plan.append({"sheet_row": sheet_row_num, "place_id": place_id, "name": name, "new": new})
         undo.append({"sheet_row": sheet_row_num, "place_id": place_id, "old": old})
@@ -408,6 +413,7 @@ def main(argv=None):
     service = sheets.get_service()
     headers, sheet_rows = sheets.read_tab(service)
     by_place_id = {r[PLACE_ID]: r for r in sheet_rows if r.get(PLACE_ID)}
+    captured_can_park = sync_mod.load_captured_can_park(service)
 
     fail_counts = {}
     eligible = []
@@ -415,14 +421,14 @@ def main(argv=None):
         sheet_row = by_place_id.get(osm_row.get("Place ID", ""))
         if sheet_row is None:
             continue
-        checks = check_eligibility(sheet_row, osm_row, args.borough, today)
+        checks = check_eligibility(sheet_row, osm_row, args.borough, today, captured_can_park)
         for name, passed in checks.items():
             if not passed:
                 fail_counts[name] = fail_counts.get(name, 0) + 1
         if is_eligible(checks):
             eligible.append((sheet_row, osm_row))
 
-    plan, undo, dry_run_rows, review_rows = build_plan_undo_review(eligible, rules, today)
+    plan, undo, dry_run_rows, review_rows = build_plan_undo_review(eligible, rules, today, captured_can_park)
 
     out_dir = Path(args.out) if args.out else Path("data/runs") / today.isoformat() / args.borough
     out_dir.mkdir(parents=True, exist_ok=True)

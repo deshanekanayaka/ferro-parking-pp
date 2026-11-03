@@ -177,9 +177,14 @@ def osm_row(**kw):
     return base
 
 
+def captured(value="Conditional", place_id="PP-1"):
+    """ALL LONDON's own Can Park?, by Place ID."""
+    return {place_id: value}
+
+
 def test_finish_record_builds_a_valid_new_dict():
     rec = full_record()
-    new, violations = cf.finish_record(sheet_row(), osm_row(), rec, TODAY)
+    new, violations = cf.finish_record(sheet_row(), osm_row(), rec, TODAY, captured())
     assert violations is None
     assert new["Cost Type"] == "Free"
     assert new["Verified By"] == cf.VERIFIED_BY
@@ -191,7 +196,7 @@ def test_finish_record_rejects_on_shared_consistency_check():
     # validate_record does not check this, page_fill.consistency_checks does.
     rec = full_record(can_park=field("No", quote="the store page states there is no customer parking"),
                        who_can_park=field("Customers only"))
-    new, violations = cf.finish_record(sheet_row(), osm_row(), rec, TODAY)
+    new, violations = cf.finish_record(sheet_row(), osm_row(), rec, TODAY, captured())
     assert new is None
     assert any("Who Can Park" in v for v in violations)
 
@@ -225,7 +230,7 @@ def test_autopay_price_mismatch_flagged():
     rec = full_record(cost_type=field("Paid", scope="site"),
                        tariff_type=field("Hourly rate"),
                        tariff_detail=field("£6.00 per hour", scope="site"))
-    new, violations = cf.finish_record(row, osm_row(), rec, TODAY)
+    new, violations = cf.finish_record(row, osm_row(), rec, TODAY, captured())
     assert violations is None
     assert "Autopay price differs" in new["Review Flag"]
     assert new["Flag Status"] == "Open"

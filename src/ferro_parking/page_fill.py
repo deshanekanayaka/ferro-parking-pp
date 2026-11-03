@@ -73,14 +73,17 @@ def autopay_price_flag(sheet_row, first_price_text):
     return None
 
 
-def build_row_values(sheet_row, extracted, today, verified_by=VERIFIED_BY):
+def build_row_values(sheet_row, extracted, today, captured_can_park, verified_by=VERIFIED_BY):
     """Assemble the full set of column values for one row from what was
     read on the page (`extracted`, a dict of the same column names), plus
     the bookkeeping columns: Change Made, Notes/Review Flag appended (never
-    replaced), Verified By/Date. Asserts no protected column is touched."""
+    replaced), Verified By/Date. Asserts no protected column is touched.
+    captured_can_park: {place_id: value}, ALL LONDON's own Can Park? by
+    Place ID (sync.captured_can_park_by_place_id), not the clean tab's
+    own column, which a cleared or not-yet-researched row leaves blank."""
     new = dict(extracted)
 
-    captured = sheet_row.get(CAN_PARK, "")
+    captured = captured_can_park.get(sheet_row.get(PLACE_ID, ""), "")
     new[fill.CHANGE_MADE] = "Yes" if extracted.get(CAN_PARK, captured) != captured else "No"
 
     extra_notes = extracted.pop("_notes", []) if "_notes" in extracted else []
