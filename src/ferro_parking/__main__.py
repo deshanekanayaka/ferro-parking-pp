@@ -8,6 +8,8 @@ Commands:
   capture-fill  Dry run fill from text already captured in the sheet (rule R8)
   write   Write a plan.json to the sheet (--apply to actually write)
   undo    Restore an undo.json to the sheet (--apply to actually write)
+  sync    Dry run: find new rows in ALL LONDON not yet in ALL LONDON (clean)
+          (never writes to the sheet)
 """
 import csv
 import sys
@@ -56,6 +58,9 @@ def main():
     if cmd == "undo":
         from .fill import undo_main
         return undo_main(argv)
+    if cmd == "sync":
+        from .sync import main as sync_main
+        return sync_main(argv)
     print(f"Unknown command: {cmd}\n\n{__doc__}")
     return 2
 
