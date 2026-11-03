@@ -41,7 +41,8 @@ WHO_CAN_PARK = fill.WHO_CAN_PARK
 NOTES = fill.NOTES
 REVIEW_FLAG = fill.REVIEW_FLAG
 FLAG_STATUS = fill.FLAG_STATUS
-VERIFIED_BY = "Policy script"
+VERIFIED_BY_COLUMN = fill.VERIFIED_BY
+VERIFIED_BY_VALUE = "Policy script"
 
 GOOGLE_THIRD_PARTY_SOURCE_TIER = "Google search / third-party"
 CHAIN_OFFICIAL_SOURCE_TIER = "Official site - text"
@@ -201,7 +202,7 @@ def chain_policy_fields(sheet_row, chain_key, chain, rules):
         "Evidence Type": "Official site: partial info",
         "Evidence Level": "Chain policy",
         "Verification Result": "Confirmed, details not published",
-        VERIFIED_BY: VERIFIED_BY,
+        VERIFIED_BY_COLUMN: VERIFIED_BY_VALUE,
         "Verified Date": None,  # filled in by caller with today's date
         "Decision Reason": f"Route-independent policy fill (rule R10): large or convenience "
                             f"chain format ({chain_key or 'unrecognised chain'}), no "
@@ -220,8 +221,8 @@ def presumed_no_parking_fields():
            "Evidence Detail (what the source shows)":
                "No car park mapped in OpenStreetMap within 40 m of the venue",
            "Rules Summary": "No parking listed (none mapped nearby). Check on arrival.",
-           "Verification Result": "Confirmed, details not published", VERIFIED_BY: VERIFIED_BY,
-           "Verified Date": None,
+           "Verification Result": "Confirmed, details not published",
+           VERIFIED_BY_COLUMN: VERIFIED_BY_VALUE, "Verified Date": None,
            "Decision Reason": "Route-independent policy fill (rule R10): small venue "
                                "category, no OpenStreetMap car park within 40 m."}
     for col in page_fill.NOT_APPLICABLE_IF_NO_PARKING:

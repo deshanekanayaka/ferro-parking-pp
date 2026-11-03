@@ -293,6 +293,37 @@ def test_finish_record_chain_policy_passes_consistency_checks():
     assert new["Flag Status"] == "Open"
 
 
+# ---- every dict key must be a real sheet column, not the value by mistake --
+REAL_COLUMN_NAMES = {
+    "Can Park? (Yes/No/Conditional)", "Who Can Park", "Cost Type", "Price Status",
+    "Tariff Type", "Tariff Detail", "Max Stay (mins)",
+    "Hours (OpenStreetMap opening_hours format)", "Hours Basis", "Operator",
+    "Specificity", "Source Tier", "Evidence Type", "Evidence Level",
+    "Verification Result", "Verified By", "Verified Date", "Decision Reason",
+    "Evidence Detail (what the source shows)", "Rules Summary", "Notes",
+    "Review Flag", "Flag Status", "Parking Control Type (Cameras / Barrier / Patrol)",
+    "PCN (Penalty Charge Notice) amount (£)",
+}
+
+
+def test_chain_policy_fields_never_uses_a_value_as_a_column_name():
+    branch, result, reason = pf.classify(sheet_row(), osm_row(), RULES)
+    fields, _, _ = result
+    assert set(fields) <= REAL_COLUMN_NAMES, set(fields) - REAL_COLUMN_NAMES
+    assert fields["Verified By"] == "Policy script"
+    assert "Policy script" not in fields
+
+
+def test_presumed_no_parking_fields_never_uses_a_value_as_a_column_name():
+    row = sheet_row(**{"Location Name": "The Red Lion", "Place Category": "Pub",
+                        "Type (as captured)": "Pub"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    fields, _, _ = result
+    assert set(fields) <= REAL_COLUMN_NAMES, set(fields) - REAL_COLUMN_NAMES
+    assert fields["Verified By"] == "Policy script"
+    assert "Policy script" not in fields
+
+
 def test_finish_record_presumed_no_parking_passes_consistency_checks():
     row = sheet_row(**{"Location Name": "The Red Lion", "Place Category": "Pub",
                         "Type (as captured)": "Pub"})
