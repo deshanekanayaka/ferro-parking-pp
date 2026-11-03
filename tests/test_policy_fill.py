@@ -209,6 +209,59 @@ def test_fast_food_named_retail_centre_needs_research():
     assert branch == "c"
 
 
+# ---- fix: brand-named Restaurant/Cafe rows get the fast food guard too ----
+def test_restaurant_kfc_without_drive_thru_is_a_small_venue():
+    # "Restaurant (KFC)" matches R10's own "restaurant" category and would
+    # otherwise skip the drive-thru/own-site guard entirely.
+    row = sheet_row(**{"Location Name": "KFC Yiewsley - High Street",
+                        "Place Category": "Restaurant (KFC)", "Type (as captured)": "Restaurant (KFC)"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "b"
+
+
+def test_restaurant_mcdonalds_with_drive_thru_in_name_needs_research():
+    row = sheet_row(**{"Location Name": "McDonald's Peggy Bedford (Drive-Thru)",
+                        "Place Category": "Restaurant (McDonald's)",
+                        "Type (as captured)": "Restaurant (McDonald's)"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+
+
+def test_restaurant_burger_king_as_its_own_osm_building_needs_research():
+    row = sheet_row(**{"Location Name": "Burger King Example Road",
+                        "Place Category": "Restaurant (Burger King)",
+                        "Type (as captured)": "Restaurant (Burger King)"})
+    branch, result, reason = pf.classify(row, osm_row(distance="", place_match=
+                                          "https://www.openstreetmap.org/way/456"), RULES)
+    assert branch == "c"
+
+
+def test_restaurant_nandos_without_drive_thru_is_a_small_venue():
+    row = sheet_row(**{"Location Name": "Nando's Wood Green",
+                        "Place Category": "Restaurant (Nando's)",
+                        "Type (as captured)": "Restaurant (Nando's)"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "b"
+
+
+def test_cafe_costa_in_a_retail_park_needs_research():
+    row = sheet_row(**{"Location Name": "Costa Lombardy Retail Park",
+                        "Place Category": "Cafe (Costa)", "Type (as captured)": "Cafe (Costa)"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+
+
+def test_is_known_fast_food_brand_matches_every_named_brand():
+    brands = ("KFC", "McDonald's", "Burger King", "Nando's", "Popeyes", "Subway",
+              "Greggs", "Five Guys", "Wendy's", "Taco Bell", "Pizza Hut", "Domino's",
+              "Papa John's", "Costa", "Starbucks", "Pret")
+    for brand in brands:
+        row = sheet_row(**{"Location Name": f"{brand} Example Street",
+                            "Place Category": f"Restaurant ({brand})",
+                            "Type (as captured)": f"Restaurant ({brand})"})
+        assert pf.is_known_fast_food_brand(row), brand
+
+
 def test_drive_thru_mentioned_only_in_place_category_is_not_enough():
     # R10's fix: only Type, Location Name, or an OSM tag count, not Place
     # Category, since that field is not where a drive-thru is confirmed.

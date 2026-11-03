@@ -58,6 +58,14 @@ GYM_CHAIN_NAMES = ("puregym", "the gym group", "virgin active", "nuffield health
 
 CUSTOMER_CAR_PARK_NAME_HINTS = ("customer car park", "customer parking")
 
+# Fast-food and casual chain brands: Type often reads "Restaurant (KFC)"
+# or "Cafe (Costa)" rather than "Fast food", so the drive-thru/own-site
+# guard must trigger on the brand itself, not only on the category text
+# saying "fast food".
+FAST_FOOD_BRAND_NAMES = ("kfc", "mcdonalds", "burger king", "nandos", "popeyes", "subway",
+                          "greggs", "five guys", "wendys", "taco bell", "pizza hut",
+                          "dominos", "papa johns", "costa", "starbucks", "pret")
+
 
 # ---------------------------------------------------------------- eligibility
 
@@ -141,14 +149,24 @@ def is_fast_food_own_site(sheet_row, osm_row):
     return "/way/" in match_url or "/relation/" in match_url
 
 
+def is_known_fast_food_brand(sheet_row):
+    """A known fast-food/casual chain brand, checked against Type and
+    Location Name together: Type often reads "Restaurant (KFC)" rather
+    than "Fast food", which would otherwise match "restaurant" in R10's
+    categories and skip the drive-thru/own-site guard entirely."""
+    text = f"{sheet_row.get('Type (as captured)', '')} {sheet_row.get(LOCATION_NAME, '')}"
+    text = text.lower().replace("'", "")
+    return any(_contains_word(text, b) for b in FAST_FOOD_BRAND_NAMES)
+
+
 def small_venue_category(sheet_row, osm_row, rules):
     """R10's small venue categories, matched against Place Category and
-    Type (as captured) together; "fast food" only counts without a
-    drive-thru and without its own OSM building area, which has its own
-    parking either way."""
+    Type (as captured) together; a fast food category or a known
+    fast-food brand only counts without a drive-thru and without its own
+    OSM building area, which has its own parking either way."""
     category_text = f"{sheet_row.get('Place Category', '')} {sheet_row.get('Type (as captured)', '')}"
     low = category_text.lower()
-    if _contains_word(low, "fast food"):
+    if _contains_word(low, "fast food") or is_known_fast_food_brand(sheet_row):
         return not is_drive_thru(sheet_row, osm_row) and not is_fast_food_own_site(sheet_row, osm_row)
     return any(_contains_word(low, c) for c in rules.r10_small_venue_categories if c != "fast food")
 
