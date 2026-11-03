@@ -199,6 +199,15 @@ def test_operator_read_from_type_captured_when_notes_only_has_the_abbreviation()
     assert rec["fields"]["operator"]["value"] == "Euro Car Parks"
 
 
+def test_sat_sun_only_bands_are_not_read_as_an_all_days_rate():
+    # The Atrium - Uxbridge (Hillingdon): the 2h/4h bands are "(all days)",
+    # the 6h/8h/12h bands are "(Sat/Sun only)". A weekday tariff must stop
+    # at the "(all days)" bands and not pick up the weekend-only prices.
+    charges = ("2 hours £2.20; 4 hours £4.00 (all days); 6 hours £5.00 (Sat/Sun only); "
+               "8 hours £7.50 (Sat/Sun only); 12 hours £10.00 (Sat/Sun only)")
+    assert ce.parse_bands(charges) == [(2, 2.20), (4, 4.00)]
+
+
 def test_r9_does_not_match_inside_a_hedged_no_official_info_note():
     # "page lists no car park" sits inside a hedge ("NO OFFICIAL INFO ...
     # verify on site"), so it is capture-side hedging, not the source's own

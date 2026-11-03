@@ -91,7 +91,11 @@ def parse_bands(charges_text):
     car park with two unrelated schedules in the same sentence (a standard
     tariff next to an emission-based or early-bird one) restarts its band
     count from a small number, and that restart point is not a real next
-    band of the first schedule."""
+    band of the first schedule.
+
+    A band immediately tagged "(Sat/Sun only)" is skipped even when it sits
+    before the weekend cutoff: that cutoff only catches a weekend rate that
+    starts a new clause, not one tag per band in an otherwise weekday list."""
     cutoff = len(charges_text)
     low = charges_text.lower()
     for marker in WEEKEND_MARKERS:
@@ -99,10 +103,16 @@ def parse_bands(charges_text):
         if idx != -1:
             cutoff = min(cutoff, idx)
     weekday_text = charges_text[:cutoff]
-    matches = re.findall(r"(\d+)\s*h(?:ours?)?\b.{0,3}£\s?(\d+(?:\.\d{2})?)", weekday_text, re.I)
+    # The trailing-context group is a lookahead so it does not consume
+    # characters: consuming them would make finditer skip past the next
+    # band's own "<N>h ... £<price>" match entirely.
+    matches = re.finditer(r"(\d+)\s*h(?:ours?)?\b.{0,3}£\s?(\d+(?:\.\d{2})?)(?=(.{0,25}))", weekday_text, re.I)
     bands = []
     prev_hours = 0
-    for h, p in matches:
+    for m in matches:
+        h, p, trailing = m.group(1), m.group(2), m.group(3).lower()
+        if any(w in trailing for w in ("sat", "sun", "weekend", "bank hol")) and "all day" not in trailing:
+            continue
         hours = int(h)
         if hours <= prev_hours:
             break
