@@ -47,6 +47,15 @@ def add_column(service, headers, spreadsheet_id=sheets.SPREADSHEET_ID, tab=sheet
     col_index = len(headers)
     letter = sheets.col_letter(col_index)
 
+    # The grid itself has no column at col_index yet (its dimensions stop
+    # at the current last column), so one more column must be appended
+    # before any cell past the edge can be written to.
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{
+            "appendDimension": {"sheetId": sheet_id, "dimension": "COLUMNS", "length": 1},
+        }]}).execute()
+
     service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id, range=f"{tab}!{letter}1",
         valueInputOption="RAW", body={"values": [[COLUMN]]}).execute()
