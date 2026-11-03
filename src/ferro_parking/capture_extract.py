@@ -25,6 +25,13 @@ NOT_APPLICABLE = {
 
 WEEKEND_MARKERS = ("weekend", "saturday", "sat ", "evening", "night", "bank holiday", "motorcycle")
 
+# "(Sat/Sun only)" restricts a band to the weekend and must be dropped from
+# a weekday tariff; "(not Sun)" only excludes one day and must be kept, so
+# this requires "only" next to the day/weekend word, not just the word.
+WEEKEND_ONLY_RE = re.compile(
+    r"(sat(urday)?|sun(day)?|weekend|bank hol\w*)\W{0,15}only|only\W{0,15}(sat(urday)?|sun(day)?|weekend|bank hol\w*)",
+    re.I)
+
 CUSTOMER_CAR_PARK_RE = re.compile(r"customer car park", re.I)
 NEGATED_CUSTOMER_CAR_PARK_RE = re.compile(r"no\s+customer car park", re.I)
 MAYBE_GENERIC_RE = re.compile(r"may be generic|VERIFY.{0,40}generic", re.I)
@@ -103,7 +110,9 @@ def parse_bands(charges_text):
 
     A band immediately tagged "(Sat/Sun only)" is skipped even when it sits
     before the weekend cutoff: that cutoff only catches a weekend rate that
-    starts a new clause, not one tag per band in an otherwise weekday list."""
+    starts a new clause, not one tag per band in an otherwise weekday list.
+    A band tagged "(not Sun)" is kept: that excludes one day, it does not
+    restrict the band to the weekend the way "only" does."""
     cutoff = len(charges_text)
     low = charges_text.lower()
     for marker in WEEKEND_MARKERS:
@@ -112,14 +121,16 @@ def parse_bands(charges_text):
             cutoff = min(cutoff, idx)
     weekday_text = charges_text[:cutoff]
     # The trailing-context group is a lookahead so it does not consume
-    # characters: consuming them would make finditer skip past the next
-    # band's own "<N>h ... £<price>" match entirely.
-    matches = re.finditer(r"(\d+)\s*h(?:ours?)?\b.{0,3}£\s?(\d+(?:\.\d{2})?)(?=(.{0,25}))", weekday_text, re.I)
+    # characters (consuming them would make finditer skip past the next
+    # band's own match), and stops at the next ";" so it never reads into
+    # the next band's own tag.
+    matches = re.finditer(r"(\d+)\s*h(?:ours?)?\b.{0,3}£\s?(\d+(?:\.\d{2})?)(?=([^;]{0,40}))",
+                           weekday_text, re.I)
     bands = []
     prev_hours = 0
     for m in matches:
         h, p, trailing = m.group(1), m.group(2), m.group(3).lower()
-        if any(w in trailing for w in ("sat", "sun", "weekend", "bank hol")) and "all day" not in trailing:
+        if WEEKEND_ONLY_RE.search(trailing):
             continue
         hours = int(h)
         if hours <= prev_hours:

@@ -186,6 +186,14 @@ def test_negated_customer_car_park_is_not_read_as_a_customer_car_park():
     assert rec["fields"].get("who_can_park", {}).get("value") != "Customers only"
 
 
+def test_not_sun_tag_keeps_the_band_unlike_sat_sun_only():
+    # The Fox on the Hill - Camberwell (Southwark): "(not Sun)" excludes one
+    # day, it does not restrict the band to the weekend the way "(Sat/Sun
+    # only)" does, so this band must still be kept.
+    charges = "3 hours £15.00; 4 hours £20.00 (not Sun); 5 hours £25.00"
+    assert ce.parse_bands(charges) == [(3, 15.00), (4, 20.00), (5, 25.00)]
+
+
 def test_operator_read_from_type_captured_when_notes_only_has_the_abbreviation():
     # Type (as captured) names "Euro Car Parks" plainly; Notes only has the
     # abbreviation "ECP", which the old notes-only regex never matched.
