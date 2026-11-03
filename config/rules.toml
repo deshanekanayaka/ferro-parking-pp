@@ -1,4 +1,4 @@
-# Ferro parking rules (R1-R6). See docs/PP_rules_and_pilot.md for where each came from.
+# Ferro parking rules (R1-R10). See docs/PP_rules_and_pilot.md for where each came from.
 # Read by the fill step (next to build). Edit here, not in code.
 
 [r1_category_defaults]
@@ -23,11 +23,18 @@ min_rows = 8
 min_agreement = 0.80
 max_stay_is_chain_rule = false      # max stay varies by store (PureGym 90-240 mins)
 
-# Chain rules found on 2026-11-02 (chain_rules_candidates_v2.csv).
+# Chain rules found on 2026-11-02 (chain_rules_candidates_v2.csv). "hint" is
+# R10's chain hint: Notes only, never a structured value (rule R7).
 [r6.chains.tesco]
 who_can_park = "Customers only"
+hint = "Max stay set per store by usage and capacity; some London stores charge non-customers"
 [r6.chains.sainsburys]
 who_can_park = "Customers only"
+hint = "Free to paid depending on store"
+[r6.chains.lidl]
+hint = "Usually 90 minutes free for customers where a parking system is installed"
+[r6.chains.aldi]
+hint = "Limited parking time, usually 90 minutes"
 [r6.chains.asda]
 who_can_park = "Customers only"
 cost_type = "Free"
@@ -101,3 +108,36 @@ explicit_no_parking_phrases = [
     "no on-site hotel parking", "no off-street hospital parking",
     "no on-site car park",
 ]
+
+[r10]
+# Every row gets an Evidence Level: "Verified" (evidence about this exact
+# site), "Chain policy" (the chain's published rule applied to a branch), or
+# "Presumed" (category plus map, no page or sign read at all). Chain policy
+# and Presumed rows may only set cautious values (Who Can Park Customers
+# only / Guests only, Cost Type Unknown or Paid, Max Stay Not published),
+# same spirit as rule R7: a category or chain guess never becomes Free, a
+# max stay, or Who Can Park Anyone.
+nearby_car_park_radius_m = 40
+
+# Large formats count as having a car park on the chain's own authority.
+# Convenience formats only count with an OSM car park within
+# nearby_car_park_radius_m of the branch: a small-format store on a high
+# street often has none. Each entry is a list of words that must all
+# appear in the location name (in any order, not necessarily adjacent),
+# matched against the normalised name so "Tesco Acton Superstore" matches
+# ["tesco", "superstore"].
+large_formats = [
+    ["tesco", "superstore"], ["tesco", "extra"], ["sainsburys", "superstore"],
+    ["lidl"], ["aldi"], ["asda"], ["morrisons"],
+]
+convenience_formats = [
+    ["tesco", "express"], ["tesco", "metro"], ["sainsburys", "local"],
+    ["little", "waitrose"], ["simply", "food"], ["co", "op"],
+]
+
+# A Presumed Can Park? = No is allowed only for these small venue types, and
+# only with no OSM car park within nearby_car_park_radius_m.
+small_venue_categories = ["cafe", "pub", "restaurant", "convenience shop",
+                           "fast food"]
+# A drive-thru fast food branch is excluded: it has its own parking.
+fast_food_drive_thru_excluded = true

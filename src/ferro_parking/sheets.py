@@ -26,6 +26,24 @@ TAB = "ALL LONDON (clean)"
 NUMERIC_COLUMNS = {"Max Stay (mins)", "PCN (Penalty Charge Notice) amount (£)",
                     "Agreeing Sources"}
 
+# "ALL LONDON (clean)"'s cell A1 currently holds a stray note instead of its
+# real header "Location Name" (someone typed a comment directly into the
+# header cell; the data beneath is untouched). Every column lookup in this
+# codebase is by header text, so left uncorrected this breaks Location Name
+# lookups everywhere, silently, with no error. Corrected on read here, once,
+# so every caller of get_headers/read_tab is safe; the cell itself still
+# needs a person to fix it by hand (never write a header fix automatically).
+_CORRUPTED_LOCATION_NAME_HEADER = (
+    "4774 rows, and it says that all boroughs have been written to the sheet, but if you "
+    "look at the all London original sheet which Brandon completed using Grogbot, there are "
+    "nearly 5000. "
+)
+
+
+def _fix_corrupted_first_header(headers):
+    if headers and headers[0] == _CORRUPTED_LOCATION_NAME_HEADER:
+        headers[0] = "Location Name"
+
 
 def get_credentials(secrets_dir=SECRETS_DIR):
     """Load the cached token, refresh it, or run the desktop OAuth flow."""
@@ -58,11 +76,25 @@ def col_letter(index):
     return letters
 
 
+def get_sheet_id(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
+    """The tab's numeric sheetId (gid), needed for structural requests
+    (data validation, formatting) that batchUpdate addresses by id, not
+    by tab name."""
+    meta = service.spreadsheets().get(
+        spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
+    for sheet in meta["sheets"]:
+        if sheet["properties"]["title"] == tab:
+            return sheet["properties"]["sheetId"]
+    raise ValueError(f"No tab named {tab!r} in this spreadsheet")
+
+
 def get_headers(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
     resp = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, range=f"{tab}!1:1").execute()
     values = resp.get("values", [])
-    return values[0] if values else []
+    headers = values[0] if values else []
+    _fix_corrupted_first_header(headers)
+    return headers
 
 
 def read_tab(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
@@ -74,6 +106,7 @@ def read_tab(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
     if not values:
         return [], []
     headers = values[0]
+    _fix_corrupted_first_header(headers)
     rows = []
     for sheet_row, raw in enumerate(values[1:], start=2):
         row = {h: (raw[i] if i < len(raw) else "") for i, h in enumerate(headers)}

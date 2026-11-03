@@ -10,6 +10,11 @@ Commands:
   undo    Restore an undo.json to the sheet (--apply to actually write)
   sync    Dry run: find new rows in ALL LONDON not yet in ALL LONDON (clean)
           (never writes to the sheet)
+  evidence-level-column    Dry run: report where the Evidence Level column
+          would go (--apply to write only the header and dropdown)
+  evidence-level-backfill  Dry run: plan Evidence Level for finished rows
+  policy-fill  Dry run: cautious chain-policy / presumed-no-parking rows
+          for one borough (rule R10, never writes to the sheet)
 """
 import csv
 import sys
@@ -61,6 +66,15 @@ def main():
     if cmd == "sync":
         from .sync import main as sync_main
         return sync_main(argv)
+    if cmd == "evidence-level-column":
+        from .evidence_level import column_main
+        return column_main(argv)
+    if cmd == "evidence-level-backfill":
+        from .evidence_level import backfill_main
+        return backfill_main(argv)
+    if cmd == "policy-fill":
+        from .policy_fill import main as policy_fill_main
+        return policy_fill_main(argv)
     print(f"Unknown command: {cmd}\n\n{__doc__}")
     return 2
 

@@ -18,17 +18,6 @@ from pathlib import Path
 ORIG_TAB = "ALL LONDON"
 CLEAN_TAB = "ALL LONDON (clean)"
 
-# The clean tab's row 1, cell A1, holds a stray note instead of its real
-# header "Location Name" (someone typed a comment directly into the
-# header cell). The data beneath is untouched; this module corrects the
-# key when reading so every lookup by "Location Name" still works. Fix
-# the cell itself by hand before any future write to this tab.
-CORRUPTED_LOCATION_NAME_HEADER = (
-    "4774 rows, and it says that all boroughs have been written to the sheet, but if you "
-    "look at the all London original sheet which Brandon completed using Grogbot, there are "
-    "nearly 5000. "
-)
-
 # "ALL LONDON"'s own column headers, by clean-tab field name, for every
 # field a direct copy reproduces reliably (checked against all 4773
 # aligned row pairs; see sync_mapping_notes below for the fidelity of
@@ -225,13 +214,11 @@ def find_duplicates(new_rows, clean_rows, radius_m=100):
 
 
 def _load_tabs(service):
+    # sheets.read_tab corrects the clean tab's corrupted A1 header
+    # ("Location Name" replaced by a stray note) on every read.
     from . import sheets
     clean_headers, clean_rows = sheets.read_tab(service, tab=CLEAN_TAB)
     orig_headers, orig_rows = sheets.read_tab(service, tab=ORIG_TAB)
-    if clean_headers and clean_headers[0] == CORRUPTED_LOCATION_NAME_HEADER:
-        for row in clean_rows:
-            row["Location Name"] = row.pop(clean_headers[0])
-        clean_headers[0] = "Location Name"
     return clean_headers, clean_rows, orig_headers, orig_rows
 
 
