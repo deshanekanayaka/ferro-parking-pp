@@ -194,6 +194,22 @@ def test_not_sun_tag_keeps_the_band_unlike_sat_sun_only():
     assert ce.parse_bands(charges) == [(3, 15.00), (4, 20.00), (5, 25.00)]
 
 
+def test_pay_on_the_day_ui_heading_is_not_read_as_confirmed_paid():
+    # London Finsbury Forecourt (NCP), Islington: "('Pay on the day' heading
+    # shown with no rows)" names a page heading, not a confirmation that the
+    # car park charges; it always sits next to UNCLEAR in the real data.
+    row = sheet_row(
+        "PP-000486", type_captured="NCP",
+        charges=("UNCLEAR – no tariff rows shown on official page | Season Tickets "
+                 "from as little as £12.87 per day. ('Pay on the day' heading shown with no rows)"),
+        hours="Mon–Sun 24 hours",
+        notes="Operator: NCP; Total spaces: 12.",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["can_park"]["value"] == "Conditional"
+    assert rec["fields"]["cost_type"]["value"] == "Unknown"
+
+
 def test_operator_read_from_type_captured_when_notes_only_has_the_abbreviation():
     # Type (as captured) names "Euro Car Parks" plainly; Notes only has the
     # abbreviation "ECP", which the old notes-only regex never matched.

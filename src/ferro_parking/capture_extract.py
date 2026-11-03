@@ -250,7 +250,11 @@ def classify(sr, osm_row):
 
     tariff_unclear = any(p in charges.lower() for p in
                           ("unclear", "prebook", "tariff not shown", "not stated", "not shown"))
-    confirmed_paid = "public pay car park" in notes.lower() or "pay on the day" in charges.lower()
+    # "('Pay on the day' heading shown with no rows)" names a UI label the
+    # page displays, not a confirmation that the car park is actually paid;
+    # that shape always sits next to "unclear" in the same charges text.
+    confirmed_paid = ("public pay car park" in notes.lower()
+                       or ("pay on the day" in charges.lower() and "unclear" not in charges.lower()))
     hours_known = hours_raw and "no official info" not in hours_raw.lower()
     if is_operator_car_park and tariff_unclear and (hours_known or confirmed_paid):
         operator = operator_name_from(type_text, notes)
