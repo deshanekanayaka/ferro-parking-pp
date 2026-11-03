@@ -184,18 +184,23 @@ OPERATOR_RE = re.compile(r"(NCP|Q-Park|Euro Car Parks|CitiPark|APCOA[\w ()]*)")
 ECP_RE = re.compile(r"\bECP\b")
 
 
-CROSS_REFERENCE_RE = re.compile(r"\bsee\b[\w\s()/-]{0,20}\brow\b\s*\d+", re.I)
+# "see NCP row 496" and "Distinct from row 689 (Sainsbury's Kings Mall
+# customer car park)" both describe a DIFFERENT database row for a
+# different physical car park, not this row. Whatever they say about that
+# other row (an operator name, "customer car park") is not a statement
+# about this one, so the whole sentence is stripped from every captured
+# column before any pattern match runs.
+CROSS_REFERENCE_SENTENCE_RE = re.compile(r"\b(?:see|distinct from)\b[^.]*?\brow\b\s*\d+[^.]*\.?", re.I)
+
+
+def strip_cross_references(text):
+    return CROSS_REFERENCE_SENTENCE_RE.sub("", text or "")
 
 
 def operator_name_from(type_text, notes):
     """Type (as captured) often names the operator plainly ("Euro Car
     Parks"); Notes sometimes only gives the abbreviation ("ECP"). Check
-    Type (as captured) first, since it is the less ambiguous of the two.
-
-    A "see NCP row 496" cross-reference to a different database row is not
-    a statement that NCP operates this car park, so it is stripped from
-    Notes before matching."""
-    notes = CROSS_REFERENCE_RE.sub("", notes)
+    Type (as captured) first, since it is the less ambiguous of the two."""
     match = OPERATOR_RE.search(type_text) or OPERATOR_RE.search(notes)
     if match:
         return match.group(1).strip()
@@ -238,7 +243,7 @@ def customer_car_park_record(place_id, notes):
 
 def classify(sr, osm_row):
     place_id = sr["Place ID"]
-    captured = {c: sr.get(c, "") for c in capture_fill.CAPTURE_COLS}
+    captured = {c: strip_cross_references(sr.get(c, "")) for c in capture_fill.CAPTURE_COLS}
     type_text = captured.get("Type (as captured)", "")
     notes = captured.get("Notes", "")
 

@@ -194,6 +194,19 @@ def test_not_sun_tag_keeps_the_band_unlike_sat_sun_only():
     assert ce.parse_bands(charges) == [(3, 15.00), (4, 20.00), (5, 25.00)]
 
 
+def test_customer_car_park_ignores_a_distinct_from_other_row_cross_reference():
+    # Kings Mall Car Park (Hammersmith and Fulham): Notes only says this row
+    # is distinct from a different row that happens to be a customer car
+    # park (Sainsbury's Kings Mall, row 689); that is not a statement that
+    # THIS car park is a customer car park.
+    row = sheet_row(
+        "PP-001030", type_captured="Retail / Shopping Centre",
+        notes="Distinct from row 689 (Sainsbury's Kings Mall customer car park).",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"].get("who_can_park", {}).get("value") != "Customers only"
+
+
 def test_operator_ignores_a_see_other_row_cross_reference():
     # Rainham (Essex) Station (Havering): Notes cross-references "see NCP
     # row 496", a pointer to a different database row, not a statement that
