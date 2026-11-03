@@ -194,6 +194,17 @@ def test_not_sun_tag_keeps_the_band_unlike_sat_sun_only():
     assert ce.parse_bands(charges) == [(3, 15.00), (4, 20.00), (5, 25.00)]
 
 
+def test_r9_rejects_a_during_events_only_restriction():
+    # Lee Valley Hockey and Tennis Centre (Waltham Forest): the denial only
+    # holds during events, and the venue has 167 real spaces otherwise.
+    row = sheet_row(
+        "PP-001902", type_captured="Sports Centre",
+        notes="No car park access during events (public transport only). 167 spaces, 15 disabled.",
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"].get("can_park", {}).get("value") != "No"
+
+
 def test_customer_car_park_ignores_a_distinct_from_other_row_cross_reference():
     # Kings Mall Car Park (Hammersmith and Fulham): Notes only says this row
     # is distinct from a different row that happens to be a customer car

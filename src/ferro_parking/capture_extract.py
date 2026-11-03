@@ -102,8 +102,18 @@ def no_parking_record(place_id, quote):
 
 
 def matches_r9(text):
+    """True only if some sentence has an explicit no-parking phrase AND
+    that same sentence is not conditioned on "during" ("No car park access
+    during events", Lee Valley Hockey and Tennis Centre): a denial that
+    only holds during a specific circumstance is not a general denial, and
+    the venue may still have real, generally usable spaces."""
     low = (text or "").lower()
-    return any(re.search(r"\b" + re.escape(p) + r"\b", low) for p in capture_fill.NO_PARKING_PHRASES)
+    for sentence in re.split(r"(?<=[.;])\s+", low):
+        if "during" in sentence:
+            continue
+        if any(re.search(r"\b" + re.escape(p) + r"\b", sentence) for p in capture_fill.NO_PARKING_PHRASES):
+            return True
+    return False
 
 
 def find_r9_quote(captured):
