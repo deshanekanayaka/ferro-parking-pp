@@ -200,7 +200,8 @@ ECP_RE = re.compile(r"\bECP\b")
 # other row (an operator name, "customer car park") is not a statement
 # about this one, so the whole sentence is stripped from every captured
 # column before any pattern match runs.
-CROSS_REFERENCE_SENTENCE_RE = re.compile(r"\b(?:see|distinct from)\b[^.]*?\brow\b\s*\d+[^.]*\.?", re.I)
+CROSS_REFERENCE_SENTENCE_RE = re.compile(
+    r"\b(?:see|distinct from|same car park as|same location as)\b[^.]*?\brow\b\s*\d+[^.]*\.?", re.I)
 
 
 def strip_cross_references(text):

@@ -218,6 +218,22 @@ def test_customer_car_park_ignores_a_distinct_from_other_row_cross_reference():
     assert rec["fields"].get("who_can_park", {}).get("value") != "Customers only"
 
 
+def test_operator_ignores_a_same_car_park_as_other_row_cross_reference():
+    # Richmond (London) Station via Drummond Place: "Same car park as NCP
+    # row 492" names a different database row for the same physical car
+    # park, not a statement that NCP operates this station's car park
+    # (whose own text says the operator is not stated on NRE).
+    row = sheet_row(
+        "PP-000845", type_captured="Station Car Park (National Rail)",
+        charges="UNCLEAR – no tariff published on NRE",
+        hours="Not stated on NRE",
+        notes=("Station operator: South Western Railway. UNCLEAR – car park operator not "
+               "stated on NRE. Same car park as NCP row 492 (Drummond Place, 5 disabled bays)."),
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["operator"]["value"] == "Not published"
+
+
 def test_operator_ignores_a_see_other_row_cross_reference():
     # Rainham (Essex) Station (Havering): Notes cross-references "see NCP
     # row 496", a pointer to a different database row, not a statement that
