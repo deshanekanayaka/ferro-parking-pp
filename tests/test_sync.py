@@ -186,3 +186,37 @@ def test_haversine_m_known_distance():
     # Roughly 111 km per degree of latitude at the equator.
     distance = sync.haversine_m(0.0, 0.0, 1.0, 0.0)
     assert 110_000 < distance < 112_000
+
+
+# ---- applying the plan: formula shifting and row building ------------------
+def test_shift_formula_row_postcode_area_pattern():
+    template = '=IF(G4774="","",IFERROR(REGEXEXTRACT(G4774,"^[A-Z]{1,2}[0-9][A-Z0-9]?"),""))'
+    shifted = sync.shift_formula_row(template, 4774, 4775)
+    assert shifted == '=IF(G4775="","",IFERROR(REGEXEXTRACT(G4775,"^[A-Z]{1,2}[0-9][A-Z0-9]?"),""))'
+
+
+def test_shift_formula_row_confidence_pattern_moves_every_reference():
+    template = "=IF(AE4774=\"\",\"\",LET(base,SWITCH(AE4774,\"x\",1),spec,SWITCH(AF4774,\"y\",2),0))"
+    shifted = sync.shift_formula_row(template, 4774, 5000)
+    assert "4774" not in shifted
+    assert shifted.count("5000") == 3
+
+
+def test_shift_formula_row_does_not_touch_an_unrelated_row_number():
+    # A literal numeric constant that happens to equal the row number must
+    # not be mistaken for a cell reference: it has no column letter.
+    template = '=IF(G4774="","",4774)'
+    shifted = sync.shift_formula_row(template, 4774, 4775)
+    assert shifted == '=IF(G4775="","",4774)'
+
+
+def test_row_values_leaves_brandons_columns_and_filled_formulas_blank():
+    headers = ["Location Name", "Postcode Area", "Confidence (1-5)",
+               "Free Stay Countdown (mins)", "Ferro Autopay", "Parking Charge (£)",
+               "Total incl. Ferro Fee (£)", "Place ID"]
+    plan_row = {"Location Name": "Test Place", "Postcode Area": "W3", "Confidence (1-5)": "3",
+                "Free Stay Countdown (mins)": "120", "Ferro Autopay": "✅",
+                "Parking Charge (£)": "1.5", "Total incl. Ferro Fee (£)": "3.1",
+                "Place ID": "PP-005000"}
+    values = sync.row_values(plan_row, headers)
+    assert values == ["Test Place", "", "", "", "", "", "", "PP-005000"]

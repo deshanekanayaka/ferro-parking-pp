@@ -97,6 +97,18 @@ def get_headers(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
     return headers
 
 
+def read_formula(service, sheet_row, col_header, headers,
+                  spreadsheet_id=SPREADSHEET_ID, tab=TAB):
+    """The literal formula text in one cell (empty string if it holds a
+    plain value, not a formula)."""
+    header_index = {h: i for i, h in enumerate(headers)}
+    rng = f"{tab}!{col_letter(header_index[col_header])}{sheet_row}"
+    resp = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id, range=rng, valueRenderOption="FORMULA").execute()
+    values = resp.get("values", [])
+    return values[0][0] if values and values[0] else ""
+
+
 def read_tab(service, spreadsheet_id=SPREADSHEET_ID, tab=TAB):
     """Read the tab. Returns (headers, rows); each row is a dict keyed by
     header text, plus "_sheet_row" (the 1-based row number in the sheet)."""

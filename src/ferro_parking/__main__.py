@@ -10,6 +10,8 @@ Commands:
   undo    Restore an undo.json to the sheet (--apply to actually write)
   sync    Dry run: find new rows in ALL LONDON not yet in ALL LONDON (clean)
           (never writes to the sheet)
+  sync-apply  Append the sync plan to the clean tab's bottom (--apply to
+          actually write; dry run reports the row range otherwise)
   evidence-level-column    Dry run: report where the Evidence Level column
           would go (--apply to write only the header and dropdown)
   evidence-level-backfill  Dry run: plan Evidence Level for finished rows
@@ -66,6 +68,9 @@ def main():
     if cmd == "sync":
         from .sync import main as sync_main
         return sync_main(argv)
+    if cmd == "sync-apply":
+        from .sync import apply_main
+        return apply_main(argv)
     if cmd == "evidence-level-column":
         from .evidence_level import column_main
         return column_main(argv)

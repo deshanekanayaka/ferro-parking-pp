@@ -313,6 +313,160 @@ def main(argv=None):
     return 0
 
 
+# ---------------------------------------------------------------- applying the plan
+
+# Of FORMULA_COLUMNS, only these two get filled down for a new row;
+# "Total incl. Ferro Fee (£)" is also one of Brandon's four and stays
+# empty along with the other three.
+FORMULAS_TO_FILL_DOWN = ("Postcode Area", "Confidence (1-5)")
+
+CELL_REF_RE = re.compile(r"([A-Z]{1,3})(\d+)")
+
+
+def shift_formula_row(formula, old_row, new_row):
+    """Copy a formula down from old_row to new_row: every cell reference
+    at old_row becomes the same column at new_row; a reference to any
+    other row (there are none in Postcode Area or Confidence (1-5), but
+    this stays correct if that ever changes) is left alone."""
+    def replace(match):
+        col, row = match.group(1), int(match.group(2))
+        return f"{col}{new_row}" if row == old_row else match.group(0)
+    return CELL_REF_RE.sub(replace, formula)
+
+
+def load_append_plan(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def row_values(plan_row, headers):
+    """One row's values in sheet column order. Brandon's four columns and
+    the two filled-down formula columns are left blank here; the caller
+    writes the formulas into the latter two separately, with
+    valueInputOption USER_ENTERED, not as plain values."""
+    skip = set(BRANDON_COLUMNS) | set(FORMULAS_TO_FILL_DOWN)
+    return [("" if h in skip else plan_row.get(h, "")) for h in headers]
+
+
+def apply_append(service, headers, clean_rows, append_plan_rows, formula_row_num,
+                  spreadsheet_id=None, tab=None):
+    """Appends append_plan_rows right after the sheet's current last row,
+    writes the main values in one range update, then fills down the
+    Postcode Area and Confidence (1-5) formulas by copying the pattern
+    read from formula_row_num. Returns the (first, last) new sheet row
+    numbers. Caller is responsible for every safety check beforehand
+    (idempotency, row count, duplicate exclusion) and for verifying the
+    result afterward."""
+    from . import sheets
+    spreadsheet_id = spreadsheet_id or sheets.SPREADSHEET_ID
+    tab = tab or CLEAN_TAB
+
+    first_row = clean_rows[-1]["_sheet_row"] + 1
+    last_row = first_row + len(append_plan_rows) - 1
+    last_col = sheets.col_letter(len(headers) - 1)
+
+    values = [row_values(row, headers) for row in append_plan_rows]
+    service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id, range=f"{tab}!A{first_row}:{last_col}{last_row}",
+        valueInputOption="RAW", body={"values": values}).execute()
+
+    for formula_col in FORMULAS_TO_FILL_DOWN:
+        col_letter = sheets.col_letter(headers.index(formula_col))
+        template = sheets.read_formula(service, formula_row_num, formula_col, headers,
+                                        spreadsheet_id, tab)
+        formulas = [[shift_formula_row(template, formula_row_num, r)]
+                    for r in range(first_row, last_row + 1)]
+        service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id, range=f"{tab}!{col_letter}{first_row}:{col_letter}{last_row}",
+            valueInputOption="USER_ENTERED", body={"values": formulas}).execute()
+
+    return first_row, last_row
+
+
+def verify_append(service, headers, append_plan_rows, pre_write_rows, first_row, last_row):
+    """Re-reads the tab and checks: the new rows now hold exactly what
+    the plan said, and every row that existed before is unchanged.
+    Returns a list of mismatch descriptions (empty means clean)."""
+    from . import sheets
+    _, post_rows = sheets.read_tab(service)
+    mismatches = []
+
+    post_by_row = {r["_sheet_row"]: r for r in post_rows}
+    for plan_row, sheet_row_num in zip(append_plan_rows, range(first_row, last_row + 1)):
+        live = post_by_row.get(sheet_row_num)
+        if live is None:
+            mismatches.append(f"row {sheet_row_num}: missing after write")
+            continue
+        for col in headers:
+            if col in BRANDON_COLUMNS or col in FORMULAS_TO_FILL_DOWN:
+                continue
+            if str(live.get(col, "")) != str(plan_row.get(col, "")):
+                mismatches.append(f"row {sheet_row_num} {col!r}: wanted "
+                                   f"{plan_row.get(col, '')!r}, got {live.get(col, '')!r}")
+
+    for old_row in pre_write_rows:
+        sheet_row_num = old_row["_sheet_row"]
+        live = post_by_row.get(sheet_row_num)
+        if live is None:
+            mismatches.append(f"row {sheet_row_num}: an existing row went missing")
+            continue
+        for col, old_value in old_row.items():
+            if col == "_sheet_row":
+                continue
+            if str(live.get(col, "")) != str(old_value):
+                mismatches.append(f"existing row {sheet_row_num} {col!r} changed: "
+                                   f"was {old_value!r}, now {live.get(col, '')!r}")
+    return mismatches
+
+
+def apply_main(argv=None):
+    import argparse
+    from . import sheets
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--append-plan", default="data/runs/2026-11-03/sync/append_plan.csv")
+    ap.add_argument("--apply", action="store_true")
+    args = ap.parse_args(argv)
+
+    append_plan_rows = load_append_plan(args.append_plan)
+    print(f"Append plan: {len(append_plan_rows)} rows "
+          f"({append_plan_rows[0]['Place ID']} to {append_plan_rows[-1]['Place ID']}).")
+
+    service = sheets.get_service()
+    headers, clean_rows = sheets.read_tab(service)
+    last_row = clean_rows[-1]["_sheet_row"]
+    expected_first_new_row = last_row + 1
+
+    existing_ids = {r.get("Place ID", "") for r in clean_rows}
+    already_done = [r["Place ID"] for r in append_plan_rows if r["Place ID"] in existing_ids]
+    if already_done:
+        print(f"Already applied: {len(already_done)} of these Place IDs are in the sheet "
+              f"already (e.g. {already_done[0]}). Stopping, nothing written.")
+        return 1
+
+    if not args.apply:
+        print(f"Would append rows {expected_first_new_row} to "
+              f"{expected_first_new_row + len(append_plan_rows) - 1}.")
+        print("Dry run only. Rerun with --apply to write.")
+        return 0
+
+    first_row, written_last_row = apply_append(service, headers, clean_rows, append_plan_rows,
+                                                formula_row_num=last_row)
+    print(f"Wrote rows {first_row} to {written_last_row}.")
+
+    mismatches = verify_append(service, headers, append_plan_rows, clean_rows, first_row,
+                                written_last_row)
+    if mismatches:
+        print(f"STOP: {len(mismatches)} mismatch(es) found on independent verification:")
+        for m in mismatches[:20]:
+            print(f"  {m}")
+        return 1
+
+    print(f"Verified: {written_last_row - 1} data rows now in {CLEAN_TAB}, every appended "
+          "cell matches the plan, no existing row changed.")
+    return 0
+
+
 if __name__ == "__main__":
     import sys
     sys.exit(main())
