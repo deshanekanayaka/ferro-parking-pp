@@ -90,9 +90,10 @@ def test_hours_basis_store_hours_when_captured_text_says_so():
 def test_plain_waitrose_is_convenience_not_large():
     row = sheet_row(**{"Location Name": "Waitrose Nine Elms"})
     assert RULES.format_for(row["Location Name"]) == "convenience"
+    # No car park evidence: R10 fix, a convenience format with none falls
+    # through to presumed no parking, not needs-research.
     branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
-    assert branch == "c"
-    assert "convenience format" in reason
+    assert branch == "b"
 
 
 def test_waitrose_and_partners_is_convenience():
@@ -113,17 +114,16 @@ def test_convenience_format_with_nearby_car_park_gets_chain_policy():
     assert branch == "a"
 
 
-def test_convenience_format_without_nearby_car_park_is_needs_research():
+def test_convenience_format_without_nearby_car_park_is_presumed_no_parking():
     row = sheet_row(**{"Location Name": "Tesco Express Baker Street"})
     branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
-    assert branch == "c"
-    assert "convenience format" in reason
+    assert branch == "b"
 
 
-def test_convenience_format_car_park_too_far_is_still_needs_research():
+def test_convenience_format_car_park_too_far_is_still_presumed_no_parking():
     row = sheet_row(**{"Location Name": "Co-op Food Camden"})
     branch, result, reason = pf.classify(row, osm_row(distance="80"), RULES)
-    assert branch == "c"
+    assert branch == "b"
 
 
 # ---- branch b: small venue, no nearby OSM car park ------------------------
@@ -193,6 +193,51 @@ def test_public_car_park_is_not_misread_as_a_pub():
     # check would wrongly call this a small venue and mark it No parking.
     row = sheet_row(**{"Location Name": "Oaklands Gate Car Park (Hillingdon Council)",
                         "Place Category": "", "Type (as captured)": "Public Car Park (Council)"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+
+
+# ---- fix b: Location Name confirming a car park overrides the OSM check --
+def test_customer_car_park_in_name_gets_chain_policy_with_no_nearby_osm_park():
+    row = sheet_row(**{"Location Name": "Aldi 90-100 Edgware Road, London (W2 2EA) "
+                                         "– customer car park"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "a"
+
+
+def test_customer_parking_in_name_also_counts():
+    row = sheet_row(**{"Location Name": "Tesco Express Somewhere - customer parking"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "a"
+
+
+# ---- fix c: gym chains need an OSM car park, never presumed no parking ---
+def test_puregym_with_nearby_car_park_gets_chain_policy():
+    row = sheet_row(**{"Location Name": "PureGym London Bayswater",
+                        "Place Category": "Gym", "Type (as captured)": "Gym"})
+    branch, result, reason = pf.classify(row, osm_row(distance="20"), RULES)
+    assert branch == "a"
+
+
+def test_puregym_with_no_nearby_car_park_needs_research_not_presumed():
+    row = sheet_row(**{"Location Name": "PureGym London Bayswater",
+                        "Place Category": "Gym", "Type (as captured)": "Gym"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+    assert "gym chain" in reason
+
+
+def test_better_leisure_centre_named_as_a_type_parenthetical_is_a_gym_chain():
+    row = sheet_row(**{"Location Name": "Woolwich Waves", "Place Category": "Leisure centre",
+                        "Type (as captured)": "Leisure centre (Better)"})
+    branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
+    assert branch == "c"
+    assert "gym chain" in reason
+
+
+def test_virgin_active_without_nearby_car_park_is_not_presumed_no_parking():
+    row = sheet_row(**{"Location Name": "Virgin Active Chelsea", "Place Category": "Gym",
+                        "Type (as captured)": "Gym"})
     branch, result, reason = pf.classify(row, osm_row(distance=""), RULES)
     assert branch == "c"
 

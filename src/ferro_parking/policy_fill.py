@@ -1,16 +1,24 @@
 """Ferro PP: rule R10's policy-fill. A dry run only command: cautious
-chain-policy rows for large and convenience chain branches, and cautious
-presumed-no-parking rows for small venues with no OSM car park nearby.
+chain-policy rows for large and convenience chain branches and for gym
+chains, and cautious presumed-no-parking rows for small venues (R10's
+categories, and a convenience-format branch with no car park evidence)
+with no OSM car park nearby.
 
 python -m ferro_parking policy-fill --borough NAME
 
 Eligible: Verification Result blank. For each eligible row:
-  a) a known chain (rules.toml) in a large format, or a convenience format
-     with an OSM car park within rules.r10_nearby_car_park_radius_m: a
-     cautious chain-policy row (Evidence Level "Chain policy").
-  b) a small venue (R10's categories) with no OSM car park within that
+  a) a known chain (rules.toml) in a large format; a convenience format
+     with car park evidence (an OSM car park within
+     rules.r10_nearby_car_park_radius_m, or "customer car park" /
+     "customer parking" in the name); or a gym chain with an OSM car
+     park within that radius: a cautious chain-policy row (Evidence
+     Level "Chain policy").
+  b) a small venue (R10's categories, or a convenience-format branch
+     with no car park evidence) with no OSM car park within that
      radius: Can Park? No, Evidence Level "Presumed".
-  c) everything else: skipped, logged as "needs research".
+  c) everything else, including a gym chain with no nearby OSM car
+     park (never presumed no parking for a gym; it may simply not be
+     mapped): skipped, logged as "needs research".
 
 This command never sets Free, Anyone, Anyone (paid), or a max stay (rule
 R7): only cautious values. See docs/PP_rules_and_pilot.md (R10) and
@@ -40,6 +48,15 @@ CHAIN_OFFICIAL_SOURCE_TIER = "Official site - text"
 
 FAST_FOOD_DRIVE_THRU_HINTS = ("drive-thru", "drive thru", "drivethru")
 
+# Gym chains: not a retail large/convenience format, so format_for never
+# matches them; checked against Location Name and Type (as captured)
+# together since the brand sometimes sits in Type as a parenthetical
+# ("Leisure centre (Better)") rather than leading the name.
+GYM_CHAIN_NAMES = ("puregym", "the gym group", "virgin active", "nuffield health",
+                    "better", "everyone active")
+
+CUSTOMER_CAR_PARK_NAME_HINTS = ("customer car park", "customer parking")
+
 
 # ---------------------------------------------------------------- eligibility
 
@@ -68,13 +85,32 @@ def has_nearby_car_park(osm_row, rules):
     return distance <= rules.r10_nearby_car_park_radius_m
 
 
-# ---------------------------------------------------------------- categories
-
 def _contains_word(text, phrase):
     """Whole-word match: plain substring would read "Public Car Park" as
     containing "pub"."""
     return re.search(r"\b" + re.escape(phrase) + r"\b", text) is not None
 
+
+def name_confirms_car_park(sheet_row):
+    """The name itself states a car park exists ("Aldi ... - customer car
+    park"), which counts regardless of what OSM shows nearby."""
+    name = (sheet_row.get(LOCATION_NAME, "") or "").lower()
+    return any(_contains_word(name, hint) for hint in CUSTOMER_CAR_PARK_NAME_HINTS)
+
+
+def has_car_park_evidence(sheet_row, osm_row, rules):
+    return has_nearby_car_park(osm_row, rules) or name_confirms_car_park(sheet_row)
+
+
+def gym_chain_for(sheet_row):
+    text = f"{sheet_row.get(LOCATION_NAME, '')} {sheet_row.get('Type (as captured)', '')}".lower()
+    for name in GYM_CHAIN_NAMES:
+        if _contains_word(text, name):
+            return name
+    return None
+
+
+# ---------------------------------------------------------------- categories
 
 def is_drive_thru(sheet_row, osm_row):
     """Checked against Type (as captured), Location Name, and the OSM
@@ -193,16 +229,27 @@ def classify(sheet_row, osm_row, rules):
             chain, chain_key = rules.r6_chains[key], key
             break
 
-    if fmt == "large" or (fmt == "convenience" and has_nearby_car_park(osm_row, rules)):
+    if fmt == "large" or (fmt == "convenience" and has_car_park_evidence(sheet_row, osm_row, rules)):
         fields, extra_notes, extra_flags = chain_policy_fields(sheet_row, chain_key, chain, rules)
         return "a", (fields, extra_notes, extra_flags), None
+
+    # A convenience-format branch with no car park evidence is, under
+    # R10, a small venue: presumed no parking, not left for research.
+    if fmt == "convenience":
+        fields, extra_notes, extra_flags = presumed_no_parking_fields()
+        return "b", (fields, extra_notes, extra_flags), None
+
+    gym = gym_chain_for(sheet_row)
+    if gym:
+        if has_nearby_car_park(osm_row, rules):
+            fields, extra_notes, extra_flags = chain_policy_fields(sheet_row, gym, rules.r6_chains.get(gym), rules)
+            return "a", (fields, extra_notes, extra_flags), None
+        return "c", None, f"gym chain ({gym}), no OSM car park within 40 m"
 
     if small_venue_category(sheet_row, osm_row, rules) and not has_nearby_car_park(osm_row, rules):
         fields, extra_notes, extra_flags = presumed_no_parking_fields()
         return "b", (fields, extra_notes, extra_flags), None
 
-    if fmt == "convenience":
-        return "c", None, "convenience format, no OSM car park within 40 m"
     return "c", None, "not a recognised chain format or small venue pattern"
 
 
