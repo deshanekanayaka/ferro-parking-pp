@@ -21,6 +21,7 @@ from datetime import date
 from pathlib import Path
 
 from . import fill, page_fill, sheets
+from . import rules as rules_mod
 
 VERIFIED_BY = "Claude (capture check)"
 CAPTURED_DATE_NOTE = "(as captured 30-31 Oct 2026, not re-fetched)"
@@ -29,6 +30,10 @@ CAPTURE_COLS = ["Type (as captured)", "Max Stay (as captured)", "Hours (as captu
                 "Geo (as captured)", "Charges (as published)", "Enforcement Details", "Notes"]
 
 STATUS_WORDS = ["UNCLEAR", "NOT PUBLISHED", "NOT STATED", "VERIFY", "TBC"]
+
+# R9: Can Park? = No needs an explicit negative statement, not silence or
+# capture shorthand ("N/A on site", "no parking facility listed").
+NO_PARKING_PHRASES = rules_mod.load_rules().r9_explicit_no_parking_phrases
 
 FIELDS = ["can_park", "who_can_park", "cost_type", "tariff_type", "tariff_detail",
           "max_stay_mins", "hours_osm_format", "hours_basis", "control_type",
@@ -153,6 +158,16 @@ def validate_record(record):
     if tariff_type is not None:
         violations.extend(check_tariff_template(tariff_type, tariff_detail))
 
+    can_park = fields.get("can_park", {})
+    if can_park.get("value") == "No":
+        quote = (can_park.get("quote") or "").lower()
+        # Word-boundary match: "no car park" must not match inside "no car
+        # parking listed", which is capture shorthand, not an explicit denial.
+        has_explicit_phrase = any(re.search(r"\b" + re.escape(phrase) + r"\b", quote)
+                                   for phrase in NO_PARKING_PHRASES)
+        if can_park.get("scope") != "site" or not has_explicit_phrase:
+            violations.append("R9: silence is not No")
+
     return violations
 
 
@@ -209,15 +224,18 @@ def rules_summary(new):
 
 def price_status_for(record):
     """R8: chain-wide captured text gives Price Status "Chain policy", never
-    "Published", even when a price is quoted."""
-    entry = record["fields"]["cost_type"]
-    if entry["value"] == "Not applicable":
+    "Published", even when a price is quoted. "Published" also needs an
+    actual price in tariff_detail: knowing a car park is paid is not the
+    same as knowing what it charges (the Q-Park "prebook only" rows)."""
+    cost_entry = record["fields"]["cost_type"]
+    if cost_entry["value"] == "Not applicable":
         return "Not applicable"
-    if entry["scope"] == "chain":
+    if cost_entry["scope"] == "chain":
         return "Chain policy (not store-specific)"
-    if entry["value"] == "Unknown":
-        return "Not published"
-    return "Published"
+    tariff_detail = record["fields"]["tariff_detail"]["value"]
+    if tariff_detail not in ("Not published", "Not applicable", ""):
+        return "Published"
+    return "Not published"
 
 
 def decide_verification_result(new, source_tier):

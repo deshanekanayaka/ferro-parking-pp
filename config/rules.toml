@@ -87,3 +87,17 @@ cautious_who_can_park = ["Customers only", "Guests only", "Unknown"]
 captured_date = "2026-10-30 to 2026-10-31"
 status_words = ["UNCLEAR", "NOT PUBLISHED", "NOT STATED", "VERIFY", "TBC"]
 tfl_is_operator_source = true  # TfL's own data counts as Source Tier "Operator / council site"
+
+[r9]
+# Can Park? = No needs an explicit negative statement on the official page,
+# not mere silence or capture shorthand (e.g. "N/A on site", "no parking
+# facility listed"). Silence is not evidence of No: leave the row for Grok.
+explicit_no_parking_phrases = [
+    "no car park", "no customer parking", "no parking available",
+    "parking not available", "no parking facilities", "no on-site parking",
+    "no parking on site", "does not have a car park", "does not have parking",
+    "no parking spaces", "no accessible parking spaces", "no public car park",
+    "no public parking", "there is no car park", "no hotel parking",
+    "no on-site hotel parking", "no off-street hospital parking",
+    "no on-site car park",
+]

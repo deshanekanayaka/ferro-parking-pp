@@ -22,6 +22,7 @@ class Rules:
     r7_free_requires_access: set
     r7_risky_cost_types: set
     r7_risky_who_can_park: set
+    r9_explicit_no_parking_phrases: list
 
     def is_own_brand_operator(self, operator_tag):
         return norm_chain_key(operator_tag) in self.r3_own_brand_names
@@ -47,4 +48,5 @@ def load_rules(path=DEFAULT_PATH):
         r7_free_requires_access=set(data["r7"]["free_requires_access"]),
         r7_risky_cost_types=set(data["r7"]["risky_cost_types"]),
         r7_risky_who_can_park=set(data["r7"]["risky_who_can_park"]),
+        r9_explicit_no_parking_phrases=[p.lower() for p in data["r9"]["explicit_no_parking_phrases"]],
     )

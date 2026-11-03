@@ -110,6 +110,59 @@ def test_invalid_scope_value_rejected():
     assert any("invalid scope" in v for v in cf.validate_record(rec))
 
 
+def test_can_park_no_requires_explicit_negative_phrase_r9():
+    rec = full_record(can_park=field("No", quote="N/A on site, no parking facility listed"))
+    assert any("R9" in v for v in cf.validate_record(rec))
+
+
+def test_can_park_no_requires_explicit_negative_phrase_vue_eltham_r9():
+    rec = full_record(can_park=field(
+        "No", quote="Nearby car parks paid, tariff not stated on Vue page, not this venue's own car park"))
+    assert any("R9" in v for v in cf.validate_record(rec))
+
+
+def test_can_park_no_accepted_with_network_rail_wording():
+    rec = full_record(can_park=field(
+        "No", quote="There is no public car park at the station (Network Rail station guide)"))
+    assert not any("R9" in v for v in cf.validate_record(rec))
+
+
+def test_can_park_no_accepted_with_an_explicit_negative_statement():
+    rec = full_record(can_park=field("No", quote="The store page states there is no customer parking"))
+    assert not any("R9" in v for v in cf.validate_record(rec))
+
+
+def test_no_car_parking_listed_does_not_match_no_car_park_r9():
+    # "no car parking listed" must not satisfy the phrase "no car park" by
+    # plain substring overlap: it is capture shorthand, not a denial.
+    rec = full_record(can_park=field("No", quote="N/A on site (no car parking listed)"))
+    assert any("R9" in v for v in cf.validate_record(rec))
+
+
+def test_can_park_no_accepted_with_hotel_and_hospital_wording():
+    for quote in ("N/A, no hotel parking", "N/A, no on-site hotel parking",
+                  "N/A, no off-street hospital parking"):
+        rec = full_record(can_park=field("No", quote=quote))
+        assert cf.validate_record(rec) == [], quote
+
+
+def test_can_park_no_accepted_with_no_on_site_car_park_wording():
+    rec = full_record(can_park=field("No", quote="N/A, no on-site car park (hospital page)"))
+    assert cf.validate_record(rec) == []
+
+
+def test_can_park_no_rejected_for_no_customer_car_park_listed_shorthand():
+    # Same "no X listed" shape as "no parking facility listed": a listing's
+    # absence, not an explicit denial, so it stays rejected under R9.
+    rec = full_record(can_park=field("No", quote="N/A on site (no customer car park listed)"))
+    assert any("R9" in v for v in cf.validate_record(rec))
+
+
+def test_can_park_no_rejected_when_scope_is_not_site_even_with_the_phrase():
+    rec = full_record(can_park=field("No", scope="chain", quote="Chain policy: no customer parking"))
+    assert any("R9" in v for v in cf.validate_record(rec))
+
+
 def test_missing_field_rejected():
     rec = full_record()
     del rec["fields"]["operator"]
@@ -136,7 +189,8 @@ def test_finish_record_builds_a_valid_new_dict():
 def test_finish_record_rejects_on_shared_consistency_check():
     # Can Park? No means every other parking column must be Not applicable;
     # validate_record does not check this, page_fill.consistency_checks does.
-    rec = full_record(can_park=field("No"), who_can_park=field("Customers only"))
+    rec = full_record(can_park=field("No", quote="the store page states there is no customer parking"),
+                       who_can_park=field("Customers only"))
     new, violations = cf.finish_record(sheet_row(), osm_row(), rec, TODAY)
     assert new is None
     assert any("Who Can Park" in v for v in violations)
@@ -150,6 +204,15 @@ def test_price_status_chain_policy_for_chain_scope():
 def test_price_status_published_for_site_scope():
     rec = full_record(cost_type=field("Free", scope="site"))
     assert cf.price_status_for(rec) == "Published"
+
+
+def test_price_status_not_published_when_cost_confirmed_but_price_is_not():
+    # Paid confirmed (it is a commercial car park) but the actual tariff is
+    # not published (Q-Park "prebook only" pattern): Price Status must stay
+    # Not published, not Published, even though Cost Type is known.
+    rec = full_record(cost_type=field("Paid", scope="site"),
+                       tariff_detail=field("Not published", scope="site"))
+    assert cf.price_status_for(rec) == "Not published"
 
 
 def test_tfl_source_counts_as_operator_council_site():
