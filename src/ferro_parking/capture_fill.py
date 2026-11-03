@@ -320,13 +320,14 @@ def main(argv=None):
     extracted_path = Path(args.extracted) if args.extracted else out_dir / "extracted.jsonl"
 
     if not extracted_path.exists():
+        from . import capture_extract
         out_dir.mkdir(parents=True, exist_ok=True)
+        records = capture_extract.write_extracted(candidates, extracted_path)
+        n_grok = sum(1 for r in records if r["leave_for_grok"])
         print(f"{len(candidates)} eligible rows for {args.borough}.")
-        print(f"No extracted file at {extracted_path}.")
-        print("Have the model read each row's captured text and Source URLs, and write one "
-              "JSON record per line to that file (place_id, leave_for_grok, reason, fields), "
-              "then rerun this command.")
-        return 1
+        print(f"No extracted file at {extracted_path}: generated it with capture_extract.")
+        print(f"Classified as leave_for_grok: {n_grok}")
+        print(f"Classified as fillable: {len(records) - n_grok}")
 
     records = [json.loads(line) for line in extracted_path.read_text().splitlines() if line.strip()]
     records_by_place_id = {r["place_id"]: r for r in records}

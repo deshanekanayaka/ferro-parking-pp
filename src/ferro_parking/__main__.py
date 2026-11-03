@@ -4,6 +4,7 @@ Commands:
   match   Stage 1: match sheet rows to OpenStreetMap and pick a research route
   export  Save the live sheet tab to data/raw/all_london_clean.csv
   fill    Stage 2-3: dry run fill for one borough (never writes to the sheet)
+  capture-extract  Build extracted.jsonl for one borough from captured text (pattern match)
   capture-fill  Dry run fill from text already captured in the sheet (rule R8)
   write   Write a plan.json to the sheet (--apply to actually write)
   undo    Restore an undo.json to the sheet (--apply to actually write)
@@ -43,6 +44,9 @@ def main():
     if cmd == "fill":
         from .fill import main as fill_main
         return fill_main(argv)
+    if cmd == "capture-extract":
+        from .capture_extract import main as capture_extract_main
+        return capture_extract_main(argv)
     if cmd == "capture-fill":
         from .capture_fill import main as capture_fill_main
         return capture_fill_main(argv)
