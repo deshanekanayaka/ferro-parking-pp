@@ -17,6 +17,8 @@ Commands:
   evidence-level-backfill  Dry run: plan Evidence Level for finished rows
   policy-fill  Dry run: cautious chain-policy / presumed-no-parking rows
           for one borough (rule R10, never writes to the sheet)
+  clear-unverified  Dry run: plan to blank every unverified parking
+          answer (never writes to the sheet)
 """
 import csv
 import sys
@@ -80,6 +82,9 @@ def main():
     if cmd == "policy-fill":
         from .policy_fill import main as policy_fill_main
         return policy_fill_main(argv)
+    if cmd == "clear-unverified":
+        from .clear_unverified import main as clear_unverified_main
+        return clear_unverified_main(argv)
     print(f"Unknown command: {cmd}\n\n{__doc__}")
     return 2
 
