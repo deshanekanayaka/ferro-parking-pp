@@ -194,6 +194,32 @@ def test_not_sun_tag_keeps_the_band_unlike_sat_sun_only():
     assert ce.parse_bands(charges) == [(3, 15.00), (4, 20.00), (5, 25.00)]
 
 
+def test_r9_rejects_a_boilerplate_swr_check_for_a_non_swr_station():
+    # Goodmayes (Redbridge): Station operator is Elizabeth line, but the
+    # only R9-qualifying text cites checking South Western Railway's own
+    # site, a station SWR does not serve. That boilerplate check must not
+    # count as a statement about this station.
+    row = sheet_row(
+        "PP-000411", type_captured="Station",
+        notes=("Station operator: Elizabeth line. Accessible spaces: 4. Checked SWR station page "
+               "southwesternrailway.com/travelling-with-us/at-the-station/goodmayes 30/10/2026: "
+               "car parking not available at this station. (operator XR)"),
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"].get("can_park", {}).get("value") != "No"
+
+
+def test_r9_still_accepts_a_genuinely_swr_operated_station():
+    row = sheet_row(
+        "PP-000835", type_captured="Station",
+        notes=("Station operator: South Western Railway. Checked SWR station page "
+               "southwesternrailway.com/travelling-with-us/at-the-station/putney 30/10/2026: "
+               "car parking not available at this station."),
+    )
+    rec = ce.classify(row, OSM_ROW)
+    assert rec["fields"]["can_park"]["value"] == "No"
+
+
 def test_pay_on_the_day_ui_heading_is_not_read_as_confirmed_paid():
     # London Finsbury Forecourt (NCP), Islington: "('Pay on the day' heading
     # shown with no rows)" names a page heading, not a confirmation that the

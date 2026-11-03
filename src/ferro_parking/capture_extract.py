@@ -48,6 +48,30 @@ R9_HEDGE_MARKERS = ("no official info", "verify")
 # under rule R9, the same as a hedge marker.
 R9_SHORTHAND_LISTED_RE = re.compile(r"\bno\b[^.;()]{0,60}\blisted\b", re.I)
 
+# Some station rows carry a boilerplate "Checked SWR station page
+# southwesternrailway.com/.../<slug> <date>: car parking not available at
+# this station. (operator <code>)" sentence that was run for every station
+# regardless of who actually operates it. When Station operator is not
+# South Western Railway, that sentence is not a statement about this
+# station and must be stripped before R9 is evaluated; a real statement
+# from the station's own operator, if present elsewhere in the text, is
+# unaffected.
+STATION_OPERATOR_RE = re.compile(r"Station operator:\s*([^.]+)\.")
+SWR_BOILERPLATE_RE = re.compile(
+    r"Checked SWR station page southwesternrailway\.com\S*\s*\d{1,2}/\d{1,2}/\d{4}:"
+    r"\s*car parking not available at this station\.(?:\s*\([^)]*\))?",
+    re.I)
+
+
+def strip_mismatched_swr_citation(text):
+    operator_match = STATION_OPERATOR_RE.search(text)
+    if not operator_match:
+        return text
+    operator = operator_match.group(1).strip().lower()
+    if "south western" in operator or "swr" in operator:
+        return text
+    return SWR_BOILERPLATE_RE.sub("", text)
+
 MAX_STAY_RE = re.compile(r"(\d+)\s*(hour|hr|hrs|hours|min|mins|minute|minutes)\b", re.I)
 
 
@@ -84,7 +108,7 @@ def matches_r9(text):
 
 def find_r9_quote(captured):
     for col in capture_fill.CAPTURE_COLS:
-        text = captured.get(col, "")
+        text = strip_mismatched_swr_citation(captured.get(col, ""))
         if (matches_r9(text) and not any(h in text.lower() for h in R9_HEDGE_MARKERS)
                 and not R9_SHORTHAND_LISTED_RE.search(text)):
             return text
