@@ -233,18 +233,7 @@ def chain_policy_fields(sheet_row, chain_key, chain, rules):
 # ---------------------------------------------------------------- branch b: presumed no parking
 
 def presumed_no_parking_fields():
-    new = {CAN_PARK: "No", "Evidence Level": "Presumed", "Source Tier": "OpenStreetMap",
-           "Evidence Detail (what the source shows)":
-               "No car park mapped in OpenStreetMap within 40 m of the venue",
-           "Rules Summary": "No parking listed (none mapped nearby). Check on arrival.",
-           "Verification Result": "Confirmed, details not published",
-           VERIFIED_BY_COLUMN: VERIFIED_BY_VALUE, "Verified Date": None,
-           "Decision Reason": "Route-independent policy fill (rule R10): small venue "
-                               "category, no OpenStreetMap car park within 40 m."}
-    for col in page_fill.NOT_APPLICABLE_IF_NO_PARKING:
-        new[col] = "Not applicable"
-    extra_flags = ["Presumed no parking: confirm on arrival"]
-    return new, [], extra_flags
+    raise RuntimeError("Map absence is not evidence of no parking; official source required")
 
 
 # ---------------------------------------------------------------- classify

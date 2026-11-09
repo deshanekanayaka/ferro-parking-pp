@@ -21,6 +21,8 @@ Commands:
           --apply and --confirm-wipe
   discover  Read-only: fetch official/source candidates, London filter, dedupe and draft
   validate  Check a plan.json or candidates.csv without network access
+  triage-blanks  Read-only: bucket blank parking answers from a local CSV
+  readiness  Read-only: count showable and complete rows, by borough and district
   osm-gaps  Read-only: list unmatched public/customer parking from a London PBF
 """
 import csv
@@ -48,6 +50,12 @@ def main():
         print(__doc__)
         return 0
     cmd, argv = sys.argv[1], sys.argv[2:]
+    if cmd == "triage-blanks":
+        from .triage_blanks import main as triage_main
+        return triage_main(argv)
+    if cmd == "readiness":
+        from .readiness import main as readiness_main
+        return readiness_main(argv)
     if cmd == "validate":
         from .validation import main as validate_main
         return validate_main(argv)
