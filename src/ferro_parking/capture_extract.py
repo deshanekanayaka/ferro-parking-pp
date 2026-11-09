@@ -279,7 +279,7 @@ def classify(sr, osm_row):
         max_stay_captured = captured.get("Max Stay (as captured)", "")
         max_stay_minutes = parse_max_stay_minutes(max_stay_captured)
         max_stay = (field(str(max_stay_minutes), "site", max_stay_captured[:150])
-                    if max_stay_minutes is not None else field("No limit", "site", charges[:200]))
+                    if max_stay_minutes is not None else field("No limit" if re.fullmatch(r"(?:There is )?(?:no (?:maximum stay|time limit|limit)|unlimited (?:stay|parking))\.?", max_stay_captured.strip(), re.I) else "Not published", "site", max_stay_captured[:200]))
         fields = {
             "can_park": field("Yes", "site", charges[:200]),
             "who_can_park": field(who_can_park_for_commercial(charges + " " + notes), "site", charges[:200]),
@@ -339,7 +339,8 @@ def build_records(candidates):
 def write_extracted(candidates, out_path):
     records = build_records(candidates)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text("\n".join(json.dumps(r) for r in records) + "\n")
+    with out_path.open("x") as stream:
+        stream.write("\n".join(json.dumps(r) for r in records) + "\n")
     return records
 
 
@@ -364,9 +365,8 @@ def main(argv=None):
     candidates = capture_fill.candidate_rows(sheet_rows, osm_rows, args.borough)
     print(f"{len(candidates)} candidates")
 
-    from datetime import date
-    out = Path(args.out) if args.out else \
-        Path("data/runs") / date.today().isoformat() / "capture" / args.borough / "extracted.jsonl"
+    from .run_paths import new_run_dir
+    out = Path(args.out) if args.out else new_run_dir(Path("capture") / args.borough) / "extracted.jsonl"
     records = write_extracted(candidates, out)
     print(f"Wrote {len(records)} records to {out}")
 
