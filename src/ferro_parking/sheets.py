@@ -19,10 +19,8 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SECRETS_DIR = Path("secrets")
 
-from .settings import setting
-
-SPREADSHEET_ID = setting("spreadsheet_id")
-TAB = setting("clean_tab")
+SPREADSHEET_ID = "1VHtzY1001e0aRSXE6s_-IJU9YioJtjSNZ5WCOt1IO-o"
+TAB = "ALL LONDON (clean)"
 
 # Written as numbers, not strings, per the sheet's number format.
 NUMERIC_COLUMNS = {"Max Stay (mins)", "PCN (Penalty Charge Notice) amount (£)",

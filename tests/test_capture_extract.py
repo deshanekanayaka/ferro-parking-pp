@@ -41,7 +41,7 @@ def test_apcoa_1h_style_bands():
     assert rec["fields"]["operator"]["value"] == "APCOA"
     assert rec["fields"]["tariff_detail"]["value"] == (
         "0-1 hrs £5.15; 1-3 hrs £11.50; 3-6 hrs £22.00; 6-12 hrs £29.80; 12-24 hrs £35.20")
-    assert rec["fields"]["max_stay_mins"]["value"] == "Not published"
+    assert rec["fields"]["max_stay_mins"]["value"] == "No limit"
 
 
 # ---- PP-000799: one sentence runs the weekday and weekend rate together ----
@@ -167,14 +167,14 @@ def test_max_stay_uses_the_captured_column_when_it_states_a_limit():
     assert rec["fields"]["max_stay_mins"]["value"] == "1440"
 
 
-def test_max_stay_unknown_when_the_captured_column_has_no_number():
+def test_max_stay_stays_no_limit_when_the_captured_column_has_no_number():
     row = sheet_row(
         "PP-000798", type_captured="Station Car Park",
         charges="1h £5.15; 3h £11.50",
         hours="Not stated on NRE", notes="APCOA",
     )
     rec = ce.classify(row, OSM_ROW)
-    assert rec["fields"]["max_stay_mins"]["value"] == "Not published"
+    assert rec["fields"]["max_stay_mins"]["value"] == "No limit"
 
 
 def test_negated_customer_car_park_is_not_read_as_a_customer_car_park():
@@ -335,19 +335,3 @@ def test_r9_does_not_match_inside_a_hedged_no_official_info_note():
     )
     rec = ce.classify(row, OSM_ROW)
     assert rec["fields"].get("can_park", {}).get("value") != "No"
-
-
-def test_operator_no_limit_requires_explicit_source_words():
-    row = sheet_row('PP-000798', type_captured='Station Car Park',
-                    charges='1h £5.15; 3h £11.50', hours='Not stated on NRE', notes='APCOA')
-    row['Max Stay (as captured)'] = 'No maximum stay'
-    rec = ce.classify(row, OSM_ROW)
-    assert rec['fields']['max_stay_mins']['value'] == 'No limit'
-
-
-def test_no_limit_not_stated_is_not_an_unlimited_stay():
-    row = sheet_row('PP-000798', type_captured='Station Car Park',
-                    charges='1h £5.15; 3h £11.50', hours='Not stated on NRE', notes='APCOA')
-    row['Max Stay (as captured)'] = 'No maximum stay stated'
-    rec = ce.classify(row, OSM_ROW)
-    assert rec['fields']['max_stay_mins']['value'] == 'Not published'

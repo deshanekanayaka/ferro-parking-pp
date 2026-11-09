@@ -6,18 +6,15 @@ python -m ferro_parking clear-unverified
     and undo.json (every current value) to
     data/runs/<today>/clear_unverified/ for every row with
     Verification Result blank. Apply with the normal write command once
-    approved. --apply additionally requires --confirm-wipe and uses the
-    existing writer after reporting the affected row count.
+    approved; this command itself never writes to the sheet.
 
 Only CLEARED_COLUMNS are touched. Every other column, every row with a
 Verification Result already set, and the "ALL LONDON" tab are left alone.
 """
-import argparse
 import csv
 import json
 from datetime import date
 from pathlib import Path
-from .run_paths import new_run_dir
 
 CLEARED_COLUMNS = [
     "Can Park? (Yes/No/Conditional)", "Who Can Park", "Rules Summary", "Cost Type",
@@ -29,7 +26,7 @@ CLEARED_COLUMNS = [
 
 
 def eligible_rows(sheet_rows):
-    return [r for r in sheet_rows if r.get("Verification Result", "") == "" and r.get("Verified By", "") in ("", "PP (validation)")]
+    return [r for r in sheet_rows if r.get("Verification Result", "") == ""]
 
 
 def build_plan(sheet_rows):
@@ -57,12 +54,6 @@ def build_plan(sheet_rows):
 def main(argv=None):
     from . import sheets
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--apply", action="store_true")
-    ap.add_argument("--confirm-wipe", action="store_true")
-    args = ap.parse_args(argv)
-    if args.apply and not args.confirm_wipe:
-        ap.error("--apply requires --confirm-wipe")
     service = sheets.get_service()
     headers, sheet_rows = sheets.read_tab(service)
     plan, undo, dry_run_rows = build_plan(sheet_rows)
@@ -73,8 +64,8 @@ def main(argv=None):
             if value:
                 non_blank_by_column[col] += 1
 
-    print(f"Rows affected: {len(plan)}")
-    out_dir = new_run_dir("clear_unverified")
+    out_dir = Path("data/runs") / date.today().isoformat() / "clear_unverified"
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "plan.json").write_text(json.dumps(plan, indent=1))
     (out_dir / "undo.json").write_text(json.dumps(undo, indent=1))
     with open(out_dir / "dry_run.csv", "w", newline="", encoding="utf-8") as f:
@@ -89,10 +80,5 @@ def main(argv=None):
     print("Non-blank cells per column:")
     for col in CLEARED_COLUMNS:
         print(f"  {non_blank_by_column[col]:5d}  {col}")
-    print(f"\nOutputs in {out_dir}/.")
-    if not args.apply:
-        print("Dry run only, nothing written to the sheet.")
-    if args.apply:
-        from .fill import write_main
-        return write_main([str(out_dir / "plan.json"), "--apply", "--confirm-wipe"])
+    print(f"\nOutputs in {out_dir}/. Dry run only, nothing written to the sheet.")
     return 0

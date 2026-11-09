@@ -143,27 +143,3 @@ small_venue_categories = ["cafe", "pub", "restaurant", "convenience shop",
                            "fast food"]
 # A drive-thru fast food branch is excluded: it has its own parking.
 fast_food_drive_thru_excluded = true
-
-# Exact sheet dropdown values used by the standalone validator.
-[dropdowns]
-"Can Park? (Yes/No/Conditional)" = ["Conditional", "No", "Unknown", "Yes"]
-"Who Can Park" = ["Anyone", "Anyone (paid)", "Customers only", "Guests only", "Not applicable", "Patients and visitors", "Permit holders", "Unknown"]
-"Cost Type" = ["Free", "Free then paid", "Not applicable", "Paid", "Unknown"]
-"Tariff Type" = ["Banded by stay length", "Flat rate per 24 hours", "Flat rate per night", "Free (time limit not published)", "Free period, then hourly", "Free with time limit", "Hourly rate", "Not applicable", "Not published"]
-"Parking Control Type (Cameras / Barrier / Patrol)" = ["ANPR (Automatic Number Plate Recognition) camera", "Barrier", "Not applicable", "Not published", "Patrol", "Pay and display"]
-"Hours Basis" = ["Car park hours", "Not applicable", "Not published", "Site hours", "Store hours"]
-"Price Status" = ["Published", "Not published", "Chain policy (not store-specific)", "Not applicable"]
-"Verification Result" = ["Confirmed", "Confirmed, details not published", "Needs on-site check", "No evidence"]
-"Specificity" = ["Site-specific", "Chain-wide", "Area only"]
-"Evidence Level" = ["Verified", "Chain policy", "Presumed"]
-"Change Made (Yes/No)" = ["Yes", "No"]
-"Rules Stated" = ["Yes", "No"]
-"Prices Stated" = ["Yes", "No"]
-"Conflict" = ["Yes", "No"]
-"Flag Status" = ["Open", "Resolved", "Won't fix"]
-"Location Status" = ["Open", "Temporarily closed", "Closed", "Unknown"]
-"Source Tier" = ["Official site - text", "Operator / council site", "Official site - logo or icon", "Google Maps - tariff photo", "Google Maps - About", "OpenStreetMap", "Parkopedia", "Google Maps - reviews", "Google search / third-party", "Gemini only", "None found"]
-"Evidence Type" = ["Official site: clear answer", "Official site: partial info", "Google Maps only", "OpenStreetMap only", "No info found"]
-"Evidence Age" = ["Under 12 months", "1-2 years", "Older or undated"]
-"Place Category" = ["Supermarket - large format", "Supermarket - convenience", "Hotel", "Retail warehouse / DIY / trade", "Gym / leisure centre", "Fast food / drive-thru", "Restaurant / pub / cafe", "Shopping centre", "Station", "Petrol station", "Council park / open space", "Council car park", "Private / operator car park", "Hospital / health centre", "School / college", "Business park / office", "Other"]
-"Area Type" = ["Retail park / out of town", "High street / town centre", "Main road standalone", "Industrial estate", "Residential", "Station / transport hub", "Park", "Hospital / campus", "Airport"]
