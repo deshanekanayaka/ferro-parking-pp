@@ -21,6 +21,8 @@ Commands:
           --apply and --confirm-wipe
   discover  Read-only: fetch official/source candidates, London filter, dedupe and draft
   validate  Check a plan.json or candidates.csv without network access
+  propose-categories  Read-only: propose category values from captured types
+  fill-postcodes  Read-only: propose postcodes from a local centroid directory
   triage-blanks  Read-only: bucket blank parking answers from a local CSV
   readiness  Read-only: count showable and complete rows, by borough and district
   osm-gaps  Read-only: list unmatched public/customer parking from a London PBF
@@ -50,6 +52,12 @@ def main():
         print(__doc__)
         return 0
     cmd, argv = sys.argv[1], sys.argv[2:]
+    if cmd == "propose-categories":
+        from .propose_categories import main as propose_main
+        return propose_main(argv)
+    if cmd == "fill-postcodes":
+        from .fill_postcodes import main as postcodes_main
+        return postcodes_main(argv)
     if cmd == "triage-blanks":
         from .triage_blanks import main as triage_main
         return triage_main(argv)
