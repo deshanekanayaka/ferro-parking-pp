@@ -17,8 +17,11 @@ Commands:
   evidence-level-backfill  Dry run: plan Evidence Level for finished rows
   policy-fill  Dry run: cautious chain-policy / presumed-no-parking rows
           for one borough (rule R10, never writes to the sheet)
-  clear-unverified  Dry run: plan to blank every unverified parking
-          answer (never writes to the sheet)
+  clear-unverified  Plan to blank unverified answers; apply requires both
+          --apply and --confirm-wipe
+  discover  Read-only: fetch official/source candidates, London filter, dedupe and draft
+  validate  Check a plan.json or candidates.csv without network access
+  osm-gaps  Read-only: list unmatched public/customer parking from a London PBF
 """
 import csv
 import sys
@@ -37,8 +40,6 @@ def cmd_export(argv):
         for row in rows:
             w.writerow({h: row.get(h, "") for h in headers})
     print(f"Wrote {len(rows)} rows to {out}")
-    row698 = next((r for r in rows if r["_sheet_row"] == 698), None)
-    print(f"Row 698 Verified By: {row698.get('Verified By', '') if row698 else '(not found)'}")
     return 0
 
 
@@ -47,6 +48,12 @@ def main():
         print(__doc__)
         return 0
     cmd, argv = sys.argv[1], sys.argv[2:]
+    if cmd == "validate":
+        from .validation import main as validate_main
+        return validate_main(argv)
+    if cmd == "osm-gaps":
+        from .gaps import main as gaps_main
+        return gaps_main(argv)
     if cmd == "match":
         from .osm_match import main as match_main
         return match_main(argv)
@@ -85,6 +92,9 @@ def main():
     if cmd == "clear-unverified":
         from .clear_unverified import main as clear_unverified_main
         return clear_unverified_main(argv)
+    if cmd == "discover":
+        from .discover import main as discover_main
+        return discover_main(argv)
     print(f"Unknown command: {cmd}\n\n{__doc__}")
     return 2
 
