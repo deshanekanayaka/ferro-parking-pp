@@ -41,7 +41,9 @@ def source_urls(value):
 
 
 def rank_names(source, hits):
-    """A unique exact name wins; fuzzy names need both strength and separation."""
+    """A unique exact name wins; fuzzy leaders need a meaningful score and gap."""
+    if len(hits) < 2:
+        return hits
     name = rules.norm_chain_key(normalize_name(source.get('name', '')))
     if not name:
         return hits
@@ -52,17 +54,21 @@ def rank_names(source, hits):
     def score(candidate):
         if not candidate:
             return 0
+        source_terminal = re.search(r'\bterminal (\d+)\b', name)
+        candidate_terminal = re.search(r'\bterminal (\d+)\b', candidate)
+        if source_terminal and candidate_terminal and source_terminal[1] != candidate_terminal[1]:
+            return 0
         left, right = set(name.split()), set(candidate.split())
         return 0.6 * SequenceMatcher(None, name, candidate).ratio() + 0.4 * len(left & right) / len(left | right)
     ranked = sorted(((score(candidate), index, row) for index, (row, candidate) in enumerate(normalised)),
                     key=lambda item: (-item[0], item[1]))
-    if ranked[0][0] >= 0.80 and ranked[0][0] - ranked[1][0] >= 0.12:
+    if ranked[0][0] >= 0.40 and ranked[0][0] - ranked[1][0] >= 0.08:
         return [ranked[0][2]]
     return hits
 
 
 def dedupe(source, rows):
-    """Return all matches at the first successful priority, never choose a tie."""
+    """Prefer decisive stages; keep unresolved multi-hit evidence while trying later stages."""
     place_id = str(source.get('place_id') or source.get('Place ID') or '').strip()
     urls = source_urls(source.get('url', ''))
     postcode = normalize_postcode(source.get('postcode', ''))
@@ -86,15 +92,26 @@ def dedupe(source, rows):
         ('same brand within 100 m', lambda row: brand and brand == brand_for(row.get('Location Name', ''), row.get('Brand', ''))
          and distance(source, row) <= 100),
     ]
+    ambiguous = None
     for reason, predicate in stages:
         matches = [row for row in rows if predicate(row)]
-        if matches:
-            if len(matches) > 1 and reason in ("postcode", "pin within 50 m"):
-                ranked = rank_names(source, matches)
-                if len(ranked) == 1:
-                    return ranked, reason + "+name"
+        if not matches:
+            continue
+        if len(matches) == 1:
             return matches, reason
-    return [], ''
+        # Duplicate stable IDs are a data error, not weak geographic evidence.
+        if reason == 'Place ID':
+            return matches, reason
+        ranked = rank_names(source, matches)
+        if len(ranked) == 1:
+            return ranked, reason + '+name'
+        if ambiguous is None:
+            ambiguous = matches, reason
+    return ambiguous if ambiguous is not None else ([], '')
+
+
+def plain_dashes(text):
+    return text.translate({0x2013: '-', 0x2014: '-'}) if isinstance(text, str) else text
 
 
 def draft(source):
@@ -129,7 +146,7 @@ def draft(source):
         kind, detail = 'Not published', 'Not published'
     if not source.get('name'):
         raise ValueError('Missing location name')
-    return {
+    values = {
         'flags': json.dumps(flags, sort_keys=True),
         'Location Name': source['name'], 'Street Address': source.get('address') or 'Not published',
         'Postcode': source.get('postcode') or 'Not published',
@@ -147,6 +164,8 @@ def draft(source):
         'Evidence Detail (what the source shows)': json.dumps({key: source.get(key, '') for key in ('name', 'tariff', 'hours', 'max_stay')}),
         'Decision Reason': 'Route discovery: draft for review',
     }
+
+    return {key: plain_dashes(value) for key, value in values.items()}
 
 
 def write_table(path, rows, headers):
@@ -201,7 +220,7 @@ def run(source_rows, sheet_rows, output, london_filter):
                             and value not in UNKNOWN and key not in ('Decision Reason', 'Source Tier', 'Specificity')}
             if existing.get('Verification Result') or existing.get('Verified By', '') not in ('', 'PP (validation)'):
                 improvements = {}
-            matches.append({'Place ID': existing['Place ID'], 'name': source['name'], 'method': reason,
+            matches.append({'Place ID': existing['Place ID'], 'name': plain_dashes(source['name']), 'method': reason,
                             'improvements': json.dumps(improvements), 'flags': row['flags'], 'source': json.dumps(source)})
         else:
             # Compare later listings against earlier new candidates as well as the sheet.

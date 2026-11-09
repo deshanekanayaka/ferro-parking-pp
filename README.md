@@ -102,13 +102,18 @@ ambiguous identities abort without producing an append plan.
 
 `discover` now tries exact Place ID, then any listed Source URL, before postcode,
 name plus street, nearby pin and brand. Generic CSV/JSON accepts either `place_id`
-or `Place ID`. Shared postcode or pin matches use a unique exact normalised name,
-or a strong name score separated from the next candidate. Ties remain exceptions.
+or `Place ID`. Shared Source URLs, postcodes, pins and other non-ID stages use a unique exact
+normalised name or a clear score leader. Fuzzy winners require score >= 0.40 and
+a margin >= 0.08; conflicting terminal numbers cannot win a fuzzy match. If no
+name wins, matching tries the remaining stages. Unresolved true/near ties remain
+exceptions, and duplicate Place IDs are never resolved by name.
 A source URL match retains query parameters and ignores fragments/trailing slashes.
 
 An unparseable tariff, hours value or max stay no longer discards the place. The
 failed value becomes `Not published`; `flags` names the field (`tariff_unparsed`,
 `hours_unparsed`, `max_stay_unparsed`). Raw quotes remain available for PP review.
+Drafted display text replaces en/em dashes with plain hyphens without discarding
+the identity match; the raw quoted source stays available.
 Generic imports still cannot certify source authority: parsed claims without trusted
 adapter evidence are withheld with field-specific `*_unverified` flags. City of
 London's adapter repairs only `?` immediately before a digit in its tariff field.
@@ -138,14 +143,19 @@ and Tariff Detail. `Not published` counts as documented only for Hours and Max S
 with a non-empty source; `Not applicable` counts as known. A missing, Unknown or
 Not published tariff, access or cost never passes the complete bar.
 
-Replay the four original batches, when their local run folders are available:
+Replay Heathrow, LCY, NR3, Havering and City of London (`2026-11-09-col`) when
+the original local run folders are available:
 
 ```bash
 PYTHONPATH=src python scripts/replay_discovery_batches.py --runs-dir data/runs --sheet-csv data/raw/all_london_clean.csv
 ```
 
-This extracts each `exceptions.csv` source JSON into fresh outputs, runs the same
-generic adapter and discovery pipeline, and records the supplied baseline alongside
-measured results in `comparison.json`. Exit code 0 requires the expected listing
-count and a majority matched for every batch. No batch input or full sheet export
+This extracts each `exceptions.csv` source JSON into fresh outputs and passes the
+decoded records directly to `discover.run`, preserving their existing `official`
+provenance. It records both the original supplied baseline and the PR review
+replay counts alongside newly measured results in `comparison.json`. Each batch
+also writes `spot_checks.csv`
+with source name, Place ID and sheet Location Name for manual identity checks.
+Exit code 0 requires the expected listing count and a majority matched for every
+batch. No batch input or full sheet export
 is committed to the repository.
