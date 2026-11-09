@@ -3,6 +3,9 @@ import argparse
 import csv
 from datetime import datetime, timezone
 import json
+import re
+from difflib import SequenceMatcher
+from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 
 from . import fill, rules
@@ -24,8 +27,44 @@ def distance(source, row):
         return float('inf')
 
 
+def source_urls(value):
+    """Normalise individual URLs without removing query parameters."""
+    result = set()
+    for item in re.split(r';|\s+', value or ''):
+        try:
+            url = urlsplit(item.strip())
+        except ValueError:
+            continue
+        if url.scheme in ('http', 'https') and url.netloc:
+            result.add(urlunsplit((url.scheme.lower(), url.netloc.lower(), url.path.rstrip('/'), url.query, '')))
+    return result
+
+
+def rank_names(source, hits):
+    """A unique exact name wins; fuzzy names need both strength and separation."""
+    name = rules.norm_chain_key(normalize_name(source.get('name', '')))
+    if not name:
+        return hits
+    normalised = [(row, rules.norm_chain_key(normalize_name(row.get('Location Name', '')))) for row in hits]
+    exact = [row for row, candidate in normalised if candidate == name]
+    if exact:
+        return exact
+    def score(candidate):
+        if not candidate:
+            return 0
+        left, right = set(name.split()), set(candidate.split())
+        return 0.6 * SequenceMatcher(None, name, candidate).ratio() + 0.4 * len(left & right) / len(left | right)
+    ranked = sorted(((score(candidate), index, row) for index, (row, candidate) in enumerate(normalised)),
+                    key=lambda item: (-item[0], item[1]))
+    if ranked[0][0] >= 0.80 and ranked[0][0] - ranked[1][0] >= 0.12:
+        return [ranked[0][2]]
+    return hits
+
+
 def dedupe(source, rows):
     """Return all matches at the first successful priority, never choose a tie."""
+    place_id = str(source.get('place_id') or source.get('Place ID') or '').strip()
+    urls = source_urls(source.get('url', ''))
     postcode = normalize_postcode(source.get('postcode', ''))
     name = normalize_name(source.get('name', ''))
     street = normalize_name(source.get('address', ''))
@@ -38,6 +77,8 @@ def dedupe(source, rows):
                      if normal == key or normal.startswith(key + ' ')), '')
     brand = brand_for(source.get('name', ''), source.get('brand', ''))
     stages = [
+        ('Place ID', lambda row: place_id and place_id == row.get('Place ID', '').strip()),
+        ('Source URL', lambda row: bool(urls & source_urls(row.get('Source URLs (primary first)', '')))),
         ('postcode', lambda row: postcode and postcode == normalize_postcode(row.get('Postcode', ''))),
         ('name+street', lambda row: name and street and name == normalize_name(row.get('Location Name', ''))
          and street == normalize_name(row.get('Street Address', ''))),
@@ -48,25 +89,53 @@ def dedupe(source, rows):
     for reason, predicate in stages:
         matches = [row for row in rows if predicate(row)]
         if matches:
+            if len(matches) > 1 and reason in ("postcode", "pin within 50 m"):
+                ranked = rank_names(source, matches)
+                if len(ranked) == 1:
+                    return ranked, reason + "+name"
             return matches, reason
     return [], ''
 
 
 def draft(source):
-    kind, detail = parse_tariff(source.get('tariff', ''))
-    hours = parse_hours(source.get('hours', ''))
-    stay = parse_stay(source.get('max_stay', ''))
-    # An imported file cannot certify its own authority. PP must review its evidence.
-    if not source.get('official') and any(v != 'Not published' for v in (detail, hours, stay)):
-        raise ValueError('Generic source facts require official site evidence review')
+    flags = {}
+    try:
+        kind, detail = parse_tariff(source.get('tariff', ''))
+    except ValueError:
+        kind, detail = 'Not published', 'Not published'
+        flags['tariff_unparsed'] = True
+    def parse_field(parser, key, flag):
+        try:
+            return parser(source.get(key, ''))
+        except ValueError:
+            flags[flag] = True
+            return 'Not published'
+    hours = parse_field(parse_hours, 'hours', 'hours_unparsed')
+    stay = parse_field(parse_stay, 'max_stay', 'max_stay_unparsed')
+    # Imported files cannot certify their own authority. Keep the identity
+    # match, retain source quotes, and quarantine only the unsupported claims.
+    if not source.get('official'):
+        if detail != 'Not published':
+            flags['tariff_unverified'] = True
+            kind, detail = 'Not published', 'Not published'
+        if hours != 'Not published':
+            flags['hours_unverified'] = True
+            hours = 'Not published'
+        if stay != 'Not published':
+            flags['max_stay_unverified'] = True
+            stay = 'Not published'
+    if kind == 'Free with time limit' and not stay.isdigit():
+        flags['tariff_inconsistent'] = True
+        kind, detail = 'Not published', 'Not published'
     if not source.get('name'):
         raise ValueError('Missing location name')
     return {
+        'flags': json.dumps(flags, sort_keys=True),
         'Location Name': source['name'], 'Street Address': source.get('address') or 'Not published',
         'Postcode': source.get('postcode') or 'Not published',
         fill.CAN_PARK: 'Unknown', 'Who Can Park': 'Unknown', 'Cost Type': 'Unknown',
         'Tariff Type': kind, 'Tariff Detail': detail,
-        'Price Status': 'Published' if detail != 'Not published' else 'Not published',
+        'Price Status': 'Not applicable' if detail == 'Not applicable' else ('Published' if detail != 'Not published' else 'Not published'),
         'Max Stay (mins)': stay, HOURS: hours,
         'Hours Basis': 'Car park hours' if hours != 'Not published' else 'Not published',
         'Operator': 'Not published', 'Rules Summary': 'Not published',
@@ -106,6 +175,15 @@ def run(source_rows, sheet_rows, output, london_filter):
             row = draft(source)
             from .validation import validate_rows
             failures = validate_rows([row])
+            if any(problem['rule'] == 'charging-hours' and not problem['message'].startswith('WARNING:') for problem in failures):
+                # Charging periods are not proof of opening hours. Preserve the
+                # place identity and withhold only the questionable time field.
+                row[HOURS] = row['Hours Basis'] = 'Not published'
+                flags = json.loads(row['flags'])
+                flags['hours_context_unresolved'] = True
+                row['flags'] = json.dumps(flags, sort_keys=True)
+                failures = validate_rows([row])
+            failures = [problem for problem in failures if not problem["message"].startswith("WARNING:")]
             if failures:
                 raise ValueError("Draft validation failed: " + "; ".join(problem["message"] for problem in failures))
             if any(chr(c) in str(value) for c in (0x2013, 0x2014) for value in row.values()):
@@ -124,7 +202,7 @@ def run(source_rows, sheet_rows, output, london_filter):
             if existing.get('Verification Result') or existing.get('Verified By', '') not in ('', 'PP (validation)'):
                 improvements = {}
             matches.append({'Place ID': existing['Place ID'], 'name': source['name'], 'method': reason,
-                            'improvements': json.dumps(improvements), 'source': json.dumps(source)})
+                            'improvements': json.dumps(improvements), 'flags': row['flags'], 'source': json.dumps(source)})
         else:
             # Compare later listings against earlier new candidates as well as the sheet.
             duplicate, method = dedupe(source, seen)
@@ -134,7 +212,7 @@ def run(source_rows, sheet_rows, output, london_filter):
             candidates.append(row)
             seen.append({**row, 'Latitude': source.get('lat', ''), 'Longitude': source.get('lon', ''), 'Brand': source.get('brand', '')})
     write_table(output / 'candidates.csv', candidates, ['Location Name', 'Postcode'])
-    write_table(output / 'matches.csv', matches, ['Place ID', 'name', 'method', 'improvements', 'source'])
+    write_table(output / 'matches.csv', matches, ['Place ID', 'name', 'method', 'improvements', 'flags', 'source'])
     write_table(output / 'exceptions.csv', exceptions, ['name', 'reason', 'source'])
     summary = {'listed': len(source_rows), 'in_london': in_london, 'matched': len(matches),
                'new': len(candidates), 'exceptions': len(exceptions), 'started_at': started,
